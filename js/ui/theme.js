@@ -9,6 +9,46 @@ export function contrastRatio(fg, bg) { const light = Math.max(luminance(fg), lu
 export function ensureContrast(fg, bg, ratio) { let candidate = [...fg]; const direction = luminance(fg) > luminance(bg) ? 1 : -1; for (let i = 0; i < 100 && contrastRatio(candidate, bg) < ratio; i += 1) candidate = candidate.map((value) => Math.max(0, Math.min(255, value + direction * 2.55))); return candidate; }
 const mix = (a, b, amount) => a.map((value, index) => value * (1 - amount) + b[index] * amount);
 const css = (rgb) => `rgb(${rgb.map(Math.round).join(", ")})`;
+const tokenNames = ["bg", "surface", "surface-2", "text", "text-muted", "border", "track", "accent", "accent-fill"];
+let currentTokens;
+let transitionFrame = 0;
+let transitionTo;
+let initialised = false;
+let lastTransitionTime;
+
+function setTokens(tokens) {
+  const root = document.documentElement;
+  tokenNames.forEach((name) => root.style.setProperty(`--${name}`, css(tokens[name])));
+}
+
+function transitionTokens(nextTokens) {
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!initialised || reduceMotion) {
+    cancelAnimationFrame(transitionFrame);
+    transitionFrame = 0;
+    currentTokens = nextTokens;
+    setTokens(nextTokens);
+    initialised = true;
+    return;
+  }
+
+  transitionTo = nextTokens;
+  if (transitionFrame) return;
+  lastTransitionTime = performance.now();
+
+  const animate = (now) => {
+    const elapsed = Math.min(100, now - lastTransitionTime);
+    const amount = 1 - Math.exp(-elapsed / 280);
+    const frameTokens = Object.fromEntries(tokenNames.map((name) => [name, currentTokens[name].map((value, index) => value + (transitionTo[name][index] - value) * amount)]));
+    const remaining = tokenNames.some((name) => frameTokens[name].some((value, index) => Math.abs(value - transitionTo[name][index]) > .15));
+    currentTokens = remaining ? frameTokens : transitionTo;
+    setTokens(currentTokens);
+    lastTransitionTime = now;
+    if (remaining) transitionFrame = requestAnimationFrame(animate);
+    else transitionFrame = 0;
+  };
+  transitionFrame = requestAnimationFrame(animate);
+}
 
 export function applyTheme(state, playing, configs) {
   const mode = state.theme === "auto" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : state.theme;
@@ -19,8 +59,18 @@ export function applyTheme(state, playing, configs) {
   const bg = mode === "light" ? mix(neutral.light.bg, mood.bg || neutral.light.bg, .15) : mix(neutral.dark.bg, mood.bg || neutral.dark.bg, .15);
   const surface = mode === "light" ? [248, 250, 251] : [32, 43, 46];
   const accent = ensureContrast(mix(tokens.accentFill, mood.accent || tokens.accentFill, .2), surface, 3);
-  const root = document.documentElement;
-  [["bg", bg], ["surface", surface], ["surface-2", mode === "light" ? [255, 255, 255] : [39, 52, 55]], ["text", tokens.text], ["text-muted", tokens.muted], ["border", tokens.border], ["track", tokens.track], ["accent", ensureContrast(mix(accent, mood.accent || accent, .1), surface, 4.5)], ["accent-fill", accent]].forEach(([key, value]) => root.style.setProperty(`--${key}`, css(value)));
+  const nextTokens = {
+    bg,
+    surface,
+    "surface-2": mode === "light" ? [255, 255, 255] : [39, 52, 55],
+    text: tokens.text,
+    "text-muted": tokens.muted,
+    border: tokens.border,
+    track: tokens.track,
+    accent: ensureContrast(mix(accent, mood.accent || accent, .1), surface, 4.5),
+    "accent-fill": accent,
+  };
+  transitionTokens(nextTokens);
   document.body.dataset.theme = mode;
   document.querySelectorAll("[data-theme-choice]").forEach((button) => button.setAttribute("aria-pressed", button.dataset.themeChoice === state.theme));
 }
