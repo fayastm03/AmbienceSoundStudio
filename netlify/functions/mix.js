@@ -12,7 +12,7 @@ function json(body, statusCode = 200) {
 }
 
 function requiredEnvironment() {
-  const names = ["process.env.PROVIDER", "process.env.GEMINI_API_KEY", "process.env.GEMINI_MODEL", "process.env.MIX_MOCK"];
+  const names = ["PROVIDER", "GEMINI_API_KEY", "GEMINI_MODEL", "MIX_MOCK"];
   const missing = names.filter((name) => !String(process.env[name] || "").trim());
   console.log(`[mix] environment: ${names.map((name) => `${name}=${missing.includes(name) ? "missing" : "set"}`).join(", ")}`);
   return missing;

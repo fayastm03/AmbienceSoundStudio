@@ -19,7 +19,7 @@ Features include layered playback, procedural fallbacks, per-layer controls, sav
 
 The mood mixer sends the 200-character description and the channel/layer catalog from `js/config/soundscapes.js` to `/api/mix`. It validates and clamps the response, animates the result over two seconds, and falls back to local keyword presets for sleep, focus, reading, calm, cosy, and storm. Requests have a three-second client cooldown.
 
-The included server function is [netlify/functions/mix.js](netlify/functions/mix.js). It uses Google Gemini by default. Create a key at <https://aistudio.google.com/> and set these variables:
+The shared server function is [netlify/functions/mix.js](netlify/functions/mix.js). Netlify runs it directly, while [api/mix.js](api/mix.js) adapts the same handler for Vercel. It uses Google Gemini by default. Create a key at <https://aistudio.google.com/> and set these variables:
 
 ```text
 PROVIDER=gemini
@@ -61,6 +61,10 @@ Google's free-tier terms may allow prompts sent to some Gemini products to be us
 The function allows about eight requests per IP per minute as a best-effort in-memory limit. Gemini HTTP 429 responses return `AI is busy, try again in a minute`; the client then uses its local keyword mixer and displays `AI is busy, using quick mode`. This serverless memory limit is not a durable global rate limiter, so use platform controls for production enforcement.
 
 Deploy by linking the project with `netlify init` and running `netlify deploy --prod`, or connect the repository in Netlify. Set the same variables in the Netlify dashboard and keep `.env` out of version control.
+
+### Vercel deployment
+
+For Vercel, the `/api/mix` entry point is [api/mix.js](api/mix.js). Add `PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `MIX_MOCK=0` under the Vercel project’s **Settings → Environment Variables** for the **Production** environment, then redeploy. Vercel does not read your local `.env` file during a Git deployment, and `.env` must remain uncommitted.
 
 ## Tuning
 
