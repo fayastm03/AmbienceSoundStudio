@@ -1,0 +1,14 @@
+[build]
+  functions = "netlify/functions"
+  publish = "."
+
+[[redirects]]
+  from = "/api/mix"
+  to = "/.netlify/functions/mix"
+  status = 200
+  force = true
+
+[dev]
+  publish = "."
+  functions = "netlify/functions"
+ 

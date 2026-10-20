@@ -1,0 +1,9 @@
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible, .channel-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+h1, h2, p { margin-top: 0; }
+input[type="range"] { width: 100%; height: 5px; appearance: none; border-radius: 5px; background: linear-gradient(to right, var(--accent-fill) var(--value, 50%), var(--track) var(--value, 50%)); cursor: pointer; }
+input[type="range"]::-webkit-slider-thumb { width: 15px; height: 15px; appearance: none; border: 3px solid var(--surface-strong); border-radius: 50%; background: var(--accent); box-shadow: 0 2px 7px var(--shadow); }
+input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 3px solid var(--surface-strong); border-radius: 50%; background: var(--accent); }
+output { color: var(--accent); font: 600 11px ui-monospace, monospace; }

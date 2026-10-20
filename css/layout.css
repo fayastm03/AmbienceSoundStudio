@@ -1,0 +1,30 @@
+.studio { width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 53px 0 30px; }
+.topbar, .intro, .channel-heading, .slider-label, .transport, footer { display: flex; align-items: center; }
+.topbar { justify-content: space-between; gap: 24px; }
+.mood-mixer { max-width: 700px; margin: 30px auto 0; padding: 17px 19px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 10px 26px var(--shadow); }
+.mood-copy { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; }.mood-copy p:last-child { margin: 0; color: var(--text-muted); font-size: 12px; }.mood-copy .kicker { margin: 0; color: var(--accent); }
+.mood-form { display: grid; grid-template-columns: 1fr auto; gap: 9px; margin-top: 12px; }.mood-form input { min-width: 0; padding: 11px 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); }.mood-form button { border: 0; border-radius: 8px; padding: 0 17px; background: var(--accent-fill); color: var(--surface); cursor: pointer; font-size: 12px; font-weight: 700; }.mood-form button:disabled { cursor: wait; opacity: .6; }.mood-status, .mood-explanation { margin: 9px 0 0; color: var(--accent); font-size: 11px; }.mood-explanation { color: var(--text-muted); }.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.kicker, .eyebrow, .channel-status, .channel-number, .theme-control > span, .master-control label, footer, .keyboard-hint { color: var(--muted); font-size: 10px; letter-spacing: .15em; text-transform: uppercase; }
+.kicker { margin-bottom: 10px; }
+h1 { margin-bottom: 0; font-size: clamp(32px, 5vw, 57px); letter-spacing: -.065em; line-height: .95; font-weight: 750; }
+h1 em { color: var(--accent); font-style: normal; }
+.theme-control { display: flex; align-items: center; gap: 11px; }
+.theme-options { display: flex; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 99px; background: rgba(255,255,255,.45); }
+.intro { justify-content: space-between; margin: 68px 0 22px; }
+.intro-copy { display: flex; align-items: center; gap: 13px; }
+.signal { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 7px var(--accent-soft); }
+.eyebrow { margin-bottom: 5px; color: var(--accent); font-weight: 700; }
+.subtle { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+.keyboard-hint { gap: 7px; font-size: 9px; letter-spacing: .04em; }
+kbd { padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); font: 600 10px ui-monospace, monospace; }
+.channels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 17px; }
+.transport { gap: 11px; margin-top: 21px; padding: 17px 19px; }
+.master-control { display: grid; grid-template-columns: 53px 1fr 38px; align-items: center; gap: 12px; width: min(350px, 45%); margin-left: auto; }
+.drift-control { display: flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.loading { display: flex; align-items: center; gap: 12px; margin: 14px 3px 0; color: var(--text-muted); font-size: 11px; opacity: 1; transition: opacity .35s ease; }
+.loading.complete { opacity: 0; }
+.loading progress { width: min(280px, 45%); accent-color: var(--accent); }
+.message { min-height: 18px; margin: 12px 3px 0; color: var(--accent); font-size: 12px; }
+footer { justify-content: center; margin-top: 34px; font-size: 9px; letter-spacing: .07em; }
+@media (max-width: 720px) { .studio { width: min(100% - 30px, 550px); padding-top: 32px; } .topbar { align-items: flex-start; flex-direction: column; } .theme-control { align-self: flex-end; } .mood-copy { align-items: flex-start; flex-direction: column; gap: 5px; }.mood-form { grid-template-columns: 1fr; }.mood-form button { min-height: 40px; }.intro { align-items: flex-start; flex-direction: column; gap: 17px; margin-top: 48px; } .channels { grid-template-columns: 1fr; } .keyboard-hint { align-self: flex-end; } .transport { flex-wrap: wrap; } .master-control { width: 100%; margin: 7px 0 0; } }
+@media (max-width: 390px) { .studio { width: calc(100% - 24px); } h1 { font-size: 32px; } }

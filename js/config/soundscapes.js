@@ -1,0 +1,12 @@
+// Central soundscape definitions. Add or remove layers only in this file.
+export const soundscapes = [
+  { id: "rain", name: "Rain", description: "A soft curtain of rain against the window.", accent: { light: [64, 113, 131], dark: [128, 193, 196] }, layers: [
+    { id: "heavy-rain", label: "Heavy rain", file: "sounds/rain/heavy-rain.mp3", defaultVolume: .6, gainDb: 0, pan: 0 }, { id: "light-rain", label: "Light rain", file: "sounds/rain/light-rain.mp3", defaultVolume: .4, gainDb: 0, pan: 0 }, { id: "window", label: "Window", file: "sounds/rain/window.mp3", defaultVolume: .3, gainDb: 0, pan: -.35 }, { id: "roof", label: "Roof", file: "sounds/rain/roof.mp3", defaultVolume: .3, gainDb: -4, pan: .35 }, { id: "thunder", label: "Thunder", file: "sounds/rain/thunder.mp3", defaultVolume: .2, gainDb: -9, pan: 0 },
+  ] },
+  { id: "coffee", name: "Coffee Shop", description: "Warm conversation, cups, and a little bustle.", accent: { light: [139, 99, 66], dark: [220, 170, 119] }, layers: [
+    { id: "chatter", label: "Chatter", file: "sounds/cafe/chatter.mp3", defaultVolume: .7, gainDb: 0, pan: 0 }, { id: "espresso", label: "Espresso", file: "sounds/cafe/espresso.mp3", defaultVolume: .25, gainDb: -9, pan: .3 },
+  ] },
+  { id: "fire", name: "Fireplace", description: "A crackling fire for a little extra warmth.", accent: { light: [181, 93, 48], dark: [239, 157, 91] }, layers: [
+    { id: "crackle", label: "Crackle", file: "sounds/fireplace/crackle.mp3", defaultVolume: .6, gainDb: 0, pan: 0 }, { id: "firewood", label: "Firewood", file: "sounds/fireplace/firewood.mp3", defaultVolume: .4, gainDb: -4, pan: 0 }, { id: "embers", label: "Embers", file: "sounds/fireplace/embers.mp3", defaultVolume: .3, gainDb: -9, pan: -.25 },
+  ] },
+];
