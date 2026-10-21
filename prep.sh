@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: ./prep.sh raw/rain sounds/rain
+# Usage: ./prep.sh raw/rain public/sounds/rain
 # Makes each clip loop-safe, loudness-matched, and 128 kbps MP3.
 set -e
 IN="$1"; OUT="$2"; FADE=2; MAXLEN=90

@@ -58,6 +58,23 @@ function sanitizeMix(candidate, configs) {
 }
 
 function animateMix(result, configs, state, engine, render) {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) {
+    configs.forEach((config) => {
+      const target = result.levels[config.id];
+      state.channels[config.id].volume = target.channel;
+      if (engine.context) engine.setChannel(config.id, target.channel);
+      config.layers.forEach((layer) => {
+        const value = target.layers[layer.id];
+        state.channels[config.id].layers[layer.id] = value;
+        if (engine.context) engine.setLayer(config.id, layer.id, value);
+      });
+    });
+    render(engine.active);
+    saveState();
+    return Promise.resolve();
+  }
+
   const start = performance.now();
   const duration = 2000;
   const initial = Object.fromEntries(configs.map((config) => [config.id, { channel: state.channels[config.id].volume, layers: Object.fromEntries(config.layers.map((layer) => [layer.id, state.channels[config.id].layers[layer.id]])) }]));
@@ -84,12 +101,13 @@ function animateMix(result, configs, state, engine, render) {
   });
 }
 
-export function bindMoodMixer({ configs, state, engine, render }) {
+export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
   const form = document.querySelector("#moodForm");
   const input = document.querySelector("#moodInput");
   const button = document.querySelector("#moodButton");
   const status = document.querySelector("#moodStatus");
   const explanation = document.querySelector("#moodExplanation");
+  const moodSaveButton = document.querySelector("#moodSaveButton");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = input.value.trim().slice(0, 200);
@@ -101,6 +119,7 @@ export function bindMoodMixer({ configs, state, engine, render }) {
     button.textContent = "Creating…";
     status.textContent = "Listening for the mood…";
     explanation.textContent = "";
+    if (moodSaveButton) moodSaveButton.hidden = true;
     let result;
     let fallbackReason = "";
     try {
@@ -119,18 +138,39 @@ export function bindMoodMixer({ configs, state, engine, render }) {
         error.code = payload.error;
         throw error;
       }
-      result = sanitizeMix(await response.json(), configs);
-      status.textContent = result.name;
+      const payload = await response.json();
+      result = sanitizeMix(payload, configs);
+      if (payload.source === "keyword" && payload.fallbackReason) {
+        fallbackReason = payload.fallbackReason === "ai_rate_limited"
+          ? "Quick mix ready — AI is temporarily rate-limited"
+          : payload.fallbackReason === "ai_timeout"
+            ? "Quick mix ready — AI took too long to respond"
+            : "Quick mix ready — using local mode";
+      }
+      status.textContent = fallbackReason || result.name;
     } catch (error) {
       console.warn("Mood mix request failed:", error.code || error.message);
       result = createKeywordMix(text, configs);
-      fallbackReason = error.status === 429 || error.name === "AbortError" ? "AI is busy, using quick mode" : "AI unavailable, using quick mode";
+      fallbackReason = error.status === 429
+        ? "Quick mix ready — AI is temporarily rate-limited"
+        : error.name === "AbortError"
+          ? "Quick mix ready — AI took too long to respond"
+          : "Quick mix ready — using local mode";
       status.textContent = fallbackReason;
     } finally {
       button.disabled = false;
       button.textContent = "Create mix";
     }
     explanation.textContent = result.explanation;
+    if (moodSaveButton) {
+      moodSaveButton.hidden = false;
+      moodSaveButton.onclick = () => {
+        if (typeof onSaveAiMix === "function") {
+          onSaveAiMix({ name: result.name, source: "ai" });
+        }
+        window.dispatchEvent(new CustomEvent("mix:save-request", { detail: { name: result.name, source: "ai" } }));
+      };
+    }
     showCooldown(status, fallbackReason || result.name);
     Promise.resolve().then(async () => {
       try {
