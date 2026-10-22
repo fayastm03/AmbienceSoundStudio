@@ -594,7 +594,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
       currentUser = null;
     });
 
-  return { open, close, applyMix };
+  return { open, close, applyMix, getMixes: () => mixes };
 }
 
 function escapeHtml(text) {

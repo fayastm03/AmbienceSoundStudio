@@ -11,10 +11,13 @@ const values = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
   MIX_MOCK: process.env.MIX_MOCK,
+  GROQ_API_KEY: process.env.GROQ_API_KEY,
+  GROQ_CHAT_MODEL: process.env.GROQ_CHAT_MODEL,
+  CHAT_MOCK: process.env.CHAT_MOCK,
 };
 
 export function getEnv(name) {
-  const value = values[name] ?? process.env[name];
+  const value = process.env[name] ?? values[name];
   return typeof value === "string" ? value.trim() : "";
 }
 
@@ -35,4 +38,7 @@ export const env = Object.freeze({
   geminiApiKey: getEnv("GEMINI_API_KEY"),
   geminiModel: getEnv("GEMINI_MODEL"),
   mixMock: getEnv("MIX_MOCK") === "1",
+  groqApiKey: getEnv("GROQ_API_KEY"),
+  groqChatModel: getEnv("GROQ_CHAT_MODEL"),
+  chatMock: getEnv("CHAT_MOCK") === "1",
 });

@@ -1,5 +1,6 @@
 // Creates AI or keyword-based mixes and animates them through the live audio controls.
 import { saveState } from "../state/store.js";
+import { isCrisisText, CRISIS_MESSAGE, HELPLINE_URL, HELPLINE_LABEL } from "../config/safety.js";
 
 const COOLDOWN_MS = 3000;
 const REQUEST_TIMEOUT_MS = 25000;
@@ -113,6 +114,26 @@ export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
     event.preventDefault();
     const text = input.value.trim().slice(0, 200);
     if (!text) { status.textContent = "Describe a moment first."; return; }
+
+    // Crisis check FIRST — before rate limit, cooldown and any model call.
+    if (isCrisisText(text)) {
+      // Build the message using only textContent/createElement — no innerHTML.
+      status.textContent = "";
+      explanation.textContent = "";
+      const container = document.createElement("span");
+      container.textContent = CRISIS_MESSAGE + " ";
+      const link = document.createElement("a");
+      link.href = HELPLINE_URL;
+      link.textContent = HELPLINE_LABEL;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      container.appendChild(link);
+      container.appendChild(document.createTextNode("."));
+      explanation.textContent = "";
+      explanation.appendChild(container);
+      return; // No actions, no model call, no quota use, nothing logged.
+    }
+
     const remaining = COOLDOWN_MS - (Date.now() - lastRequestAt);
     if (remaining > 0) { showCooldown(status, "Please wait"); return; }
     lastRequestAt = Date.now();

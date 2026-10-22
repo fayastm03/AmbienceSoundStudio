@@ -19,6 +19,10 @@
             <h1>Ambient <em>Sound</em> Studio</h1>
           </div>
           <div class="header-actions">
+            <button type="button" id="assistantButton" class="btn btn-secondary assistant-button" aria-haspopup="dialog" aria-expanded="false" aria-label="Open sound assistant">
+              <span class="assistant-btn-icon" aria-hidden="true">✦</span>
+              <span class="assistant-btn-text">Assistant</span>
+            </button>
             <div id="accountMenu" class="account-menu">
               <button type="button" id="accountButton" class="btn btn-secondary account-button" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">Sign in</button>
             </div>
@@ -213,6 +217,45 @@
       </div>
 
       <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      <aside class="assistant-panel" id="assistantPanel" data-overlay="assistantPanel" aria-labelledby="assistantTitle" role="region" hidden>
+        <div class="assistant-header">
+          <div>
+            <p class="kicker">Sound assistant</p>
+            <h2 id="assistantTitle">Chat</h2>
+          </div>
+          <button type="button" class="close-button" id="closeAssistant" aria-label="Close assistant" title="Close assistant">×</button>
+        </div>
+
+        <div id="assistantTimerBanner" class="assistant-timer-banner" hidden>
+          <span id="assistantTimerLabel">Sleep timer: 00:00</span>
+          <button type="button" id="assistantTimerCancel" class="btn-ghost assistant-timer-cancel">Cancel</button>
+        </div>
+
+        <div class="assistant-chips-wrap">
+          <div id="assistantChips" class="assistant-chips" role="group" aria-label="Quick sound actions">
+            <button type="button" class="assistant-chip" data-chip="Sleep">Sleep</button>
+            <button type="button" class="assistant-chip" data-chip="Focus">Focus</button>
+            <button type="button" class="assistant-chip" data-chip="Warmer">Warmer</button>
+            <button type="button" class="assistant-chip" data-chip="Less crowded">Less crowded</button>
+            <button type="button" class="assistant-chip" data-chip="Surprise me">Surprise me</button>
+            <button type="button" class="assistant-chip" disabled title="Personalisation coming soon" aria-label="My usual (personalisation coming soon)">My usual</button>
+          </div>
+        </div>
+
+        <div id="assistantMessages" class="assistant-messages" role="log" aria-label="Chat messages"></div>
+        <p id="assistantLiveStatus" class="sr-only" role="status" aria-live="polite"></p>
+
+        <form id="assistantForm" class="assistant-form">
+          <div id="assistantQuota" class="assistant-quota" aria-live="polite"></div>
+          <label class="sr-only" for="assistantInput">Ask assistant</label>
+          <input id="assistantInput" name="message" type="text" maxlength="160" placeholder="Ask for sounds, timer, volume…" autocomplete="off" required>
+          <div class="assistant-form-actions">
+            <button id="assistantUndo" type="button" class="btn btn-secondary btn-sm assistant-undo" aria-label="Undo last change" title="Undo last change" disabled>Undo</button>
+            <button id="assistantSend" type="submit" class="btn btn-primary btn-sm assistant-send">Send</button>
+          </div>
+        </form>
+      </aside>
     </div>
 
     <script type="module" src="js/main.js"></script>
