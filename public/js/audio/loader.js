@@ -3,6 +3,11 @@ export async function loadLayers(context, soundscapes, onProgress) {
   const entries = soundscapes.flatMap((soundscape) => soundscape.layers.map((layer) => ({ ...layer, channelId: soundscape.id })));
   let complete = 0;
   const result = await Promise.all(entries.map(async (layer) => {
+    if (layer.procedural || !layer.file) {
+      complete += 1;
+      onProgress(complete, entries.length);
+      return { ...layer, buffer: null, generated: false, failure: null, procedural: true };
+    }
     const url = new URL(`./${layer.file}`, window.location.href).href;
     try {
       const response = await fetch(url);

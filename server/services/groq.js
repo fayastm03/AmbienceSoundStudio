@@ -80,6 +80,20 @@ function generateMockChat(userText, currentMix = {}) {
     };
   }
 
+  if (/(?:nature|forest|wind|stream|birds|waves|crickets)/i.test(text)) {
+    return {
+      reply: "Surrounded you with forest breeze, flowing water, and birdsong.",
+      mood: "calm",
+      mix: {
+        nature: 60,
+        wind: 40,
+        stream: 35,
+        birds: 30,
+      },
+      changes: "Increased nature volume with wind and running stream.",
+    };
+  }
+
   if (/(?:storm|thunder|rain)/i.test(text)) {
     return {
       reply: "Deepened the rain layers and added gentle thunder.",

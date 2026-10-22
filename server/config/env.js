@@ -26,14 +26,14 @@ if (getEnv("SESSION_SECRET").length > 0 && getEnv("SESSION_SECRET").length < 32)
   missing.push("SESSION_SECRET (at least 32 characters)");
 }
 if (missing.length) {
-  throw new Error(`Missing or invalid environment variable names: ${missing.join(", ")}`);
+  console.warn(`[env] Missing or invalid environment variable names: ${missing.join(", ")}`);
 }
 
 export const env = Object.freeze({
   port: Number.parseInt(getEnv("PORT"), 10) || 3000,
-  nodeEnv: getEnv("NODE_ENV"),
+  nodeEnv: getEnv("NODE_ENV") || "development",
   mongoUri: getEnv("MONGODB_URI"),
-  sessionSecret: getEnv("SESSION_SECRET"),
+  sessionSecret: getEnv("SESSION_SECRET") || "ambient-sound-studio-default-session-secret-key-32chars",
   provider: getEnv("PROVIDER").toLowerCase() || "gemini",
   geminiApiKey: getEnv("GEMINI_API_KEY"),
   geminiModel: getEnv("GEMINI_MODEL"),

@@ -24,7 +24,16 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
     undoStack.push({
       master: state.master,
       muted: state.muted,
-      channels: clone(state.channels),
+      channels: Object.fromEntries(
+        soundscapes.map((cfg) => [
+          cfg.id,
+          {
+            channel: state.channels[cfg.id].volume,
+            volume: state.channels[cfg.id].volume,
+            layers: clone(state.channels[cfg.id].layers),
+          },
+        ])
+      ),
     });
     if (undoStack.length > MAX_UNDO) {
       undoStack.shift();
@@ -43,8 +52,9 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
       soundscapes.forEach((config) => {
         const target = targetLevels[config.id];
         if (!target) return;
-        state.channels[config.id].volume = clamp(target.channel);
-        if (engine.context) engine.setChannel(config.id, state.channels[config.id].volume);
+        const targetVol = clamp(target.channel !== undefined ? target.channel : target.volume);
+        state.channels[config.id].volume = targetVol;
+        if (engine.context) engine.setChannel(config.id, targetVol);
 
         config.layers.forEach((layer) => {
           if (target.layers?.[layer.id] !== undefined) {
@@ -79,7 +89,7 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
           if (!target) return;
 
           const chStart = initial[config.id].channel;
-          const chTarget = clamp(target.channel);
+          const chTarget = clamp(target.channel !== undefined ? target.channel : target.volume);
           const chVal = chStart + (chTarget - chStart) * eased;
           state.channels[config.id].volume = chVal;
           if (engine.context) engine.setChannel(config.id, chVal);
@@ -135,15 +145,20 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
       }
 
       if (remainingMs <= 0) {
-        cancelSleepTimer();
+        const savedPreMaster = preTimerMaster;
+        if (sleepTimerId) {
+          clearInterval(sleepTimerId);
+          sleepTimerId = null;
+        }
+        sleepTimerEndTime = null;
+        preTimerMaster = null;
+
         if (engine.active) {
           await engine.pause();
-          render(false);
         }
-        if (preTimerMaster !== null) {
-          state.master = preTimerMaster;
-          setMaster(preTimerMaster);
-          preTimerMaster = null;
+        if (savedPreMaster !== null) {
+          state.master = savedPreMaster;
+          setMaster(savedPreMaster);
         }
         render(false);
         if (typeof onTimerTick === "function") {
@@ -527,6 +542,7 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
   return {
     executeActions,
     canUndo,
+    saveSnapshot,
     undo: () => executeActions([{ type: "undo" }]),
     getTimerRemaining,
     cancelSleepTimer,

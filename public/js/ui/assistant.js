@@ -4,7 +4,7 @@
 import { registerOverlay, openOverlay, closeOverlay, isOverlayOpen } from "./overlay.js";
 import { parseCommand } from "../assistant/commands.js";
 import { createAssistantExecutor } from "../assistant/executor.js";
-import { askAssistant, getChatHistory } from "../assistant/ai-client.js";
+import { askAssistant, getChatHistory, recordLocalChat } from "../assistant/ai-client.js";
 import { isCrisisText, CRISIS_MESSAGE, HELPLINE_URL, HELPLINE_LABEL } from "../config/safety.js";
 
 const MAX_MESSAGES = 30;
@@ -169,6 +169,15 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         link.className = "assistant-helpline-link";
         textEl.appendChild(link);
         textEl.appendChild(document.createTextNode(". If you want, I can also play something quiet in the background."));
+      } else if (msg.thinking) {
+        textEl.textContent = "Thinking";
+        const dots = document.createElement("span");
+        dots.className = "assistant-thinking-dots";
+        dots.setAttribute("aria-hidden", "true");
+        dots.appendChild(document.createElement("span"));
+        dots.appendChild(document.createElement("span"));
+        dots.appendChild(document.createElement("span"));
+        textEl.appendChild(dots);
       } else {
         textEl.textContent = msg.text;
       }
@@ -219,6 +228,7 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       { key: "rain", label: "Rain" },
       { key: "cafe", alt: "coffee", label: "Cafe" },
       { key: "fire", label: "Fire" },
+      { key: "nature", label: "Nature" },
     ];
     for (const ch of channelMap) {
       const val = mix[ch.key] !== undefined ? mix[ch.key] : (ch.alt ? mix[ch.alt] : undefined);
@@ -245,6 +255,7 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       { key: "rain", label: "Rain" },
       { key: "coffee", label: "Cafe" },
       { key: "fire", label: "Fire" },
+      { key: "nature", label: "Nature" },
     ];
     for (const ch of channelMap) {
       const chState = state?.channels?.[ch.key];
@@ -324,6 +335,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       soundscapes,
       savedMixes,
       usualLevels: currentUsualLevels,
+      canUndo: executor.canUndo(),
+      timerRemaining: executor.getTimerRemaining(),
     });
     if (localCmd) {
       appendMessage("user", clean);
@@ -339,8 +352,16 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         );
         const mixChip = hasMixChange ? getActiveChannelsSummary() : null;
         appendMessage("assistant", localCmd.reply, { mixChip, hasUndo: Boolean(mixChip) });
+
+        // Record locally handled command to user history and mood in MongoDB
+        const presetAction = localCmd.actions.find((a) => a.type === "preset" || a.type === "surprise");
+        const lowerClean = clean.toLowerCase();
+        const detectedMood = presetAction?.name || (lowerClean.includes("warm") ? "cozy" : lowerClean.includes("crowd") ? "calm" : lowerClean.includes("focus") ? "focused" : lowerClean.includes("sleep") ? "sleepy" : null);
+        const mixSnapshot = getCurrentMixSnapshot();
+        recordLocalChat(clean, localCmd.reply, detectedMood, mixSnapshot);
       } else {
         appendMessage("assistant", localCmd.reply);
+        recordLocalChat(clean, localCmd.reply);
       }
       return;
     }
@@ -399,8 +420,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   }
 
   let historyLoaded = false;
-  async function loadHistory() {
-    if (historyLoaded) return;
+  async function loadHistory(force = false) {
+    if (historyLoaded && !force) return;
     try {
       const { messages: hist, profile } = await getChatHistory();
       if (profile) {
@@ -408,6 +429,9 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         if (profile.usualMix) {
           currentUsualLevels = mixToLevels(profile.usualMix);
         }
+      } else if (!force) {
+        currentUserProfile = null;
+        currentUsualLevels = null;
       }
 
       if (Array.isArray(hist) && hist.length > 0) {
@@ -418,15 +442,26 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
             text: m.text,
           });
         });
+        // If user has a personalized profile greeting, show it as the session greeting
+        if (profile?.greeting) {
+          const lastMsg = messages[messages.length - 1];
+          if (!lastMsg || lastMsg.text !== profile.greeting) {
+            messages.push({
+              role: "assistant",
+              text: profile.greeting,
+            });
+          }
+        }
         while (messages.length > MAX_MESSAGES) {
           messages.shift();
         }
       } else if (profile?.greeting) {
         // Personalized first-message greeting using mood history
-        messages[0] = {
+        messages.length = 0;
+        messages.push({
           role: "assistant",
           text: profile.greeting,
-        };
+        });
       }
       renderMessages();
       historyLoaded = true;
@@ -434,6 +469,22 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       historyLoaded = true;
     }
   }
+
+  window.addEventListener("auth:change", (event) => {
+    if (event.detail?.user) {
+      loadHistory(true);
+    } else {
+      currentUserProfile = null;
+      currentUsualLevels = null;
+      historyLoaded = false;
+      messages.length = 0;
+      messages.push({
+        role: "assistant",
+        text: "Hi, I'm your sound assistant. Tell me what sounds you'd like, set a timer, or ask for adjustments.",
+      });
+      renderMessages();
+    }
+  });
 
   // Register non-modal overlay
   if (panel) {
@@ -512,11 +563,34 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
     });
   }
 
+  // Expose global pushUndo hook for Saved Mixes or manual mixer adjustments
+  window.pushUndo = () => {
+    executor.saveSnapshot();
+    updateUndoButton();
+  };
+
+  function syncTimerBanner() {
+    if (!timerBanner) return;
+    const rem = executor.getTimerRemaining();
+    if (rem && rem > 0) {
+      timerBanner.hidden = false;
+      if (timerLabel) timerLabel.textContent = `Sleep timer: ${formatTime(rem)}`;
+    } else {
+      timerBanner.hidden = true;
+    }
+  }
+
   renderMessages();
   updateUndoButton();
+  syncTimerBanner();
+  loadHistory();
 
   return {
-    open: () => openOverlay("assistantPanel", { trigger: button, focusTarget: input }),
+    open: () => {
+      syncTimerBanner();
+      updateUndoButton();
+      openOverlay("assistantPanel", { trigger: button, focusTarget: input });
+    },
     close: () => closeOverlay("assistantPanel"),
     isAssistantOpen: () => isOverlayOpen("assistantPanel"),
     getCurrentMoodTags: () => [...currentMoodTags],

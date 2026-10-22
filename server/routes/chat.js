@@ -25,6 +25,7 @@ const ALLOWED_MIX_KEYS = [
   "cafe",
   "coffee",
   "fire",
+  "nature",
   "heavy-rain",
   "light-rain",
   "window",
@@ -35,6 +36,11 @@ const ALLOWED_MIX_KEYS = [
   "crackle",
   "firewood",
   "embers",
+  "wind",
+  "stream",
+  "birds",
+  "crickets",
+  "waves",
 ];
 
 const chatSchema = z.object({
@@ -56,8 +62,8 @@ Analyze the user's message and current mix levels, then respond in strict JSON w
 - "reply": 1-2 warm, concise sentences acknowledging the mood and adjustments.
 - "mood": exactly one of [calm, focused, sleepy, cozy, stressed, sad, happy, energetic].
 - "mix": object with channels and layers set from 0 to 100.
-Channels: rain, cafe, fire.
-Layers: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers.
+Channels: rain, cafe, fire, nature.
+Layers: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers, wind, stream, birds, crickets, waves.
 - "changes": short description of adjustments made.
 
 For relative requests like "warmer" or "less crowded", adjust relative to the current mix. Output valid JSON only.`;
@@ -243,6 +249,41 @@ router.get("/history", async (request, response) => {
     });
   } catch (error) {
     return response.json({ messages: [], profile: null });
+  }
+});
+
+const recordSchema = z.object({
+  message: z.string().trim().min(1).max(500),
+  reply: z.string().trim().min(1).max(500),
+  mood: z.string().trim().max(50).nullable().optional(),
+  mix: z.record(z.any()).nullable().optional(),
+});
+
+router.post("/record", async (request, response) => {
+  if (!request.session?.userId || !isDatabaseConnected()) {
+    return response.json({ ok: false });
+  }
+
+  try {
+    const { message, reply, mood, mix } = recordSchema.parse(request.body);
+    const now = new Date();
+    await ChatMessage.create([
+      { userId: request.session.userId, role: "user", text: message, time: now },
+      { userId: request.session.userId, role: "assistant", text: reply, time: new Date(now.getTime() + 1) },
+    ]);
+
+    if (mood) {
+      await MoodEntry.create({
+        userId: request.session.userId,
+        mood,
+        mix: mix || {},
+        time: now,
+      });
+    }
+
+    return response.json({ ok: true });
+  } catch {
+    return response.json({ ok: false });
   }
 });
 

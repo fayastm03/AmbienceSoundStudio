@@ -9,14 +9,27 @@ mongoose.connection.on("error", (error) => {
   console.error(`[database] connection error: ${error.message}`);
 });
 
+let connectionPromise = null;
+
 export async function connectDatabase() {
-  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) return;
-  try {
-    await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 5000 });
-    console.log("[server] MongoDB connected");
-  } catch (error) {
-    console.error(`[server] MongoDB connection failed: ${error.message}`);
+  if (!env.mongoUri) {
+    console.warn("[server] No MONGODB_URI configured");
+    return;
   }
+  if (mongoose.connection.readyState === 1) return;
+  if (connectionPromise) return connectionPromise;
+
+  connectionPromise = mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 5000 })
+    .then(() => {
+      console.log("[server] MongoDB connected");
+      connectionPromise = null;
+    })
+    .catch((error) => {
+      console.error(`[server] MongoDB connection failed: ${error.message}`);
+      connectionPromise = null;
+    });
+
+  return connectionPromise;
 }
 
 export function databaseState() {

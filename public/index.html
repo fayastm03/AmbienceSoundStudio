@@ -80,9 +80,14 @@
           </div>
         </section>
 
-        <div class="loading" id="loading" hidden>
-          <span>Loading sound library</span>
-          <progress id="loadProgress" max="100" value="0"></progress>
+        <div class="loading" id="loading" hidden role="status" aria-live="polite">
+          <span class="buffering-bars" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </span>
+          <span class="loading-text">Buffering sound library</span>
+          <div class="loading-progress-wrap">
+            <progress id="loadProgress" max="100" value="0" aria-label="Audio loading progress"></progress>
+          </div>
           <span id="loadLabel">0%</span>
         </div>
         <p class="message" id="audioMessage" role="status" aria-live="polite"></p>
@@ -235,6 +240,7 @@
         <div class="assistant-chips-wrap">
           <div id="assistantChips" class="assistant-chips" role="group" aria-label="Quick sound actions">
             <button type="button" class="assistant-chip" data-chip="Sleep">Sleep</button>
+            <button type="button" class="assistant-chip" data-chip="Sleep in 30 mins" title="Start a 30-minute sleep timer">Timer 30m</button>
             <button type="button" class="assistant-chip" data-chip="Focus">Focus</button>
             <button type="button" class="assistant-chip" data-chip="Warmer">Warmer</button>
             <button type="button" class="assistant-chip" data-chip="Less crowded">Less crowded</button>

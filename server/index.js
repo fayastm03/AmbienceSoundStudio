@@ -66,7 +66,7 @@ const databaseReady = () => mongoose.connection.readyState === 1;
 let sessionMiddleware = null;
 function getSessionMiddleware() {
   if (sessionMiddleware) return sessionMiddleware;
-  if (!databaseReady()) return null;
+  if (!databaseReady() || !env.sessionSecret) return null;
 
   const store = MongoStore.create({
     clientPromise: Promise.resolve(mongoose.connection.getClient()),
@@ -83,7 +83,7 @@ function getSessionMiddleware() {
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: isProduction,
+      secure: isProduction || Boolean(process.env.VERCEL),
       maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
     },
   });
@@ -109,7 +109,7 @@ function optionalSession(request, response, next) {
 }
 
 app.use("/api/health", healthRouter);
-app.use("/api/mix", mixRouter);
+app.use("/api/mix", optionalSession, mixRouter);
 app.use("/api/chat", optionalSession, chatRouter);
 
 // While the database is down, the front end can still ask "am I signed in?" and gets a calm answer.

@@ -220,4 +220,14 @@ expect(200, authHistRes.status, "authenticated history status");
 assert.ok(Array.isArray(authHistRes.body.messages), "history messages should be an array");
 assert.ok("profile" in authHistRes.body, "history response should contain profile key");
 
+// 8. POST /api/chat/record
+console.log("[smoke-chat] 8. Testing POST /api/chat/record...");
+testUserId = null;
+const unauthRecRes = await request("/api/chat/record", {
+  method: "POST",
+  body: JSON.stringify({ message: "Focus", reply: "Focused mix applied." }),
+});
+expect(200, unauthRecRes.status, "record status");
+assert.equal(unauthRecRes.body.ok, false, "unauthenticated cannot record");
+
 console.log("[smoke-chat] All smoke tests passed successfully!");

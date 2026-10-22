@@ -4,6 +4,8 @@ import { env } from "../config/env.js";
 import { createMix } from "../services/gemini.js";
 import { mixRateLimit } from "../middleware/rateLimit.js";
 import { isCrisisText, CRISIS_MESSAGE } from "../../public/js/config/safety.js";
+import { isDatabaseConnected } from "../config/db.js";
+import { MoodEntry } from "../models/MoodEntry.js";
 
 const router = Router();
 const requestSchema = z.object({
@@ -25,7 +27,23 @@ router.post("/", mixRateLimit, async (request, response, next) => {
       });
     }
 
-    response.json(await createMix({ ...input, mock: env.mixMock, provider: env.provider, apiKey: env.geminiApiKey, model: env.geminiModel }));
+    const result = await createMix({ ...input, mock: env.mixMock, provider: env.provider, apiKey: env.geminiApiKey, model: env.geminiModel });
+
+    if (request.session?.userId && isDatabaseConnected() && result.levels) {
+      try {
+        const moodName = result.tags?.[0] || input.text.slice(0, 30);
+        await MoodEntry.create({
+          userId: request.session.userId,
+          mood: moodName,
+          mix: result.levels,
+          time: new Date(),
+        });
+      } catch (err) {
+        console.error("[mix-db] failed to record mood:", err?.message || err);
+      }
+    }
+
+    response.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) return response.status(400).json({ error: "bad_request" });
     return next(error);

@@ -28,7 +28,8 @@ function keywordMix(text, channels) {
   const has = (...words) => words.some((word) => mood.includes(word));
   const levels = Object.fromEntries(channels.map((channel) => {
     const id = channel.id.toLowerCase();
-    const channelLevel = has("coffee", "work", "cafe") && id.includes("coffee") ? .55
+    const channelLevel = has("nature", "forest", "tree", "bird", "stream", "river", "wind", "waves", "crickets", "outdoor") && id.includes("nature") ? .65
+      : has("coffee", "work", "cafe") && id.includes("coffee") ? .55
       : has("fire", "cosy", "cozy", "warm") && id.includes("fire") ? .6
         : has("storm") && id.includes("rain") ? .8
           : has("sleep", "focus", "reading", "calm") && id.includes("rain") ? .42
@@ -36,7 +37,7 @@ function keywordMix(text, channels) {
     return [channel.id, { channel: channelLevel, layers: Object.fromEntries(channel.layers.map((layer) => [layer, has("storm") && layer.includes("thunder") ? .3 : .35])) }];
   }));
   return {
-    name: has("sleep") ? "Sleepy shelter" : has("focus", "reading") ? "Quiet concentration" : has("storm") ? "Storm watch" : has("cosy", "cozy", "warm") ? "Fireside comfort" : has("coffee", "work") ? "Cafe focus" : has("calm") ? "Gentle reset" : "A considered moment",
+    name: has("nature", "forest", "bird", "stream") ? "Forest canopy" : has("sleep") ? "Sleepy shelter" : has("focus", "reading") ? "Quiet concentration" : has("storm") ? "Storm watch" : has("cosy", "cozy", "warm") ? "Fireside comfort" : has("coffee", "work") ? "Cafe focus" : has("calm") ? "Gentle reset" : "A considered moment",
     explanation: "A balanced blend shaped from your words, ready to adjust by ear.",
     levels,
   };

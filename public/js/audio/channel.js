@@ -1,6 +1,7 @@
 // Owns channel gain, channel bus, and its configured layer nodes.
 import { createFallbackBuffer } from "./fallback.js";
 import { createLayer } from "./layer.js";
+import { createProceduralLayer } from "./nature.js";
 export function createChannel(context, soundscape, channelState, channelBus, registerSource) {
   const channelGain = context.createGain();
   channelGain.gain.value = 0;
@@ -11,9 +12,21 @@ export function createChannel(context, soundscape, channelState, channelBus, reg
     gain: channelGain,
     layers,
     addLayer(entry) {
-      const buffer = entry.buffer || createFallbackBuffer(context, soundscape.id);
-      const node = createLayer(context, buffer, entry, channelGain, channelState.layers[entry.id], registerSource);
-      layers.set(entry.id, { ...node, generated: entry.generated, duration: buffer.duration, url: entry.url, failure: entry.failure });
+      let node;
+      const initialLayerVol = channelState?.layers?.[entry.id] ?? entry.defaultVolume ?? 0;
+      if (entry.procedural) {
+        node = createProceduralLayer(context, entry, channelGain, initialLayerVol, registerSource);
+      } else {
+        const buffer = entry.buffer || createFallbackBuffer(context, soundscape.id);
+        node = createLayer(context, buffer, entry, channelGain, initialLayerVol, registerSource);
+      }
+      layers.set(entry.id, {
+        ...node,
+        generated: entry.generated,
+        duration: entry.procedural ? 0 : (entry.buffer?.duration || 12),
+        url: entry.url,
+        failure: entry.failure,
+      });
       return layers.get(entry.id);
     },
     setVolume(value, ramp = .05) {

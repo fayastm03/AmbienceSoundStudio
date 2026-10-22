@@ -21,9 +21,16 @@ export function bindControls(engine, state, render) {
   play.onclick = async () => {
     try {
       if (!engine.context) {
+        play.classList.add("btn-loading");
+        play.setAttribute("aria-busy", "true");
         document.querySelector("#loading").hidden = false;
-        await engine.start();
-        playing = true;
+        try {
+          await engine.start();
+          playing = true;
+        } finally {
+          play.classList.remove("btn-loading");
+          play.removeAttribute("aria-busy");
+        }
       } else if (playing) {
         await engine.pause();
         playing = false;
