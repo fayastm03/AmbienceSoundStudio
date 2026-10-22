@@ -241,4 +241,22 @@ expect(200, offTopicRes.status, "off-topic response status");
 assert.ok(offTopicRes.body.reply.includes("Ambient Sound Studio"), "reply should identify as Ambient Sound Studio assistant");
 assert.deepEqual(offTopicRes.body.mix, {}, "off-topic queries should not alter sounds (mix must be empty)");
 
+const factorialRes = await request("/api/chat", {
+  method: "POST",
+  body: JSON.stringify({ message: "find factorial of 9" }),
+});
+expect(200, factorialRes.status, "factorial response status");
+assert.ok(factorialRes.body.reply.includes("Ambient Sound Studio"), "factorial reply should decline as Ambient Sound Studio assistant");
+assert.deepEqual(factorialRes.body.mix, {}, "factorial queries must have empty mix");
+
+// 10. App features query -> informative explanation and empty mix {}
+console.log("[smoke-chat] 10. Testing app features query...");
+const featuresRes = await request("/api/chat", {
+  method: "POST",
+  body: JSON.stringify({ message: "what features do you have" }),
+});
+expect(200, featuresRes.status, "features response status");
+assert.ok(featuresRes.body.reply.includes("Soundscapes") || featuresRes.body.reply.includes("soundscapes"), "features reply should describe soundscapes");
+assert.deepEqual(featuresRes.body.mix, {}, "features query should not alter sounds");
+
 console.log("[smoke-chat] All smoke tests passed successfully!");

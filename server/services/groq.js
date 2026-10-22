@@ -51,10 +51,83 @@ function generateMockChat(userText, currentMix = {}) {
     };
   }
 
-  // Out-of-scope / general knowledge check (app-only assistant)
-  if (/(?:factorial|\bcode\b|python|javascript|java|c\+\+|math|\d+\s*[\+\-\*\/]\s*\d+|capital of|recipe|who is|joke|calculate|derivative|integral|equation)/i.test(text)) {
+  // App overview & feature questions (answering accurately about this app)
+  if (/(?:what\s+is\s+this\s+app|what\s+does\s+this\s+app\s+do|about\s+this\s+app|about\s+ambient\s+sound\s+studio)/i.test(text)) {
     return {
-      reply: "I'm exclusively your Ambient Sound Studio assistant for ambient sounds, sleep timers, and mood mixes. I can't answer general questions or math problems, but I'd be happy to play a quiet focus mix if you're studying!",
+      reply: "Ambient Sound Studio is an ambient soundscape mixer designed for focused work, deep study, reading, relaxation, and sleep. You can mix 4 distinct soundscapes (Rain, Coffee Shop, Fireplace, and procedural Nature), control 14 individual acoustic layers, use the AI Mood Mixer, set sleep timers, and save custom soundscapes.",
+      mood: "calm",
+      mix: {},
+      changes: "Provided app overview.",
+    };
+  }
+
+  if (/(?:what\s+features|app\s+features|feature\s+list|features\s+list|what\s+can\s+this\s+app\s+do|what\s+can\s+you\s+do)/i.test(text)) {
+    return {
+      reply: "Ambient Sound Studio features 4 soundscapes (Rain, Cafe, Fireplace, Nature), 14 acoustic layers, 100% procedural Web Audio synthesis for Nature, Natural Drift volume modulation, a Sleep Timer with 30s auto-fadeout, AI Mood Mixer, saved mixes with MongoDB storage, and accessibility keyboard shortcuts.",
+      mood: "calm",
+      mix: {},
+      changes: "Listed app features.",
+    };
+  }
+
+  if (/(?:what\s+sounds|available\s+sounds|channels|available\s+channels|layers)/i.test(text)) {
+    return {
+      reply: "We offer 4 soundscapes with 14 layers: Rain (Heavy rain, Light rain, Window, Roof, Thunder), Coffee Shop (Cafe atmosphere, Espresso, Chatter), Fireplace (Crackle, Firewood, Embers), and Nature (Wind, Stream, Waves, Crickets, Birds).",
+      mood: "calm",
+      mix: {},
+      changes: "Described sound catalog.",
+    };
+  }
+
+  if (/(?:nature\s+channel|how\s+does\s+nature|procedural)/i.test(text)) {
+    return {
+      reply: "The Nature channel is 100% procedurally synthesized in real-time with Web Audio nodes (noise generators, band-pass filters, LFO oscillators). Zero audio files are needed, and setting a layer to 0% suspends its nodes for 0 CPU usage.",
+      mood: "calm",
+      mix: {},
+      changes: "Explained procedural Nature channel.",
+    };
+  }
+
+  if (/(?:drift|natural\s+drift)/i.test(text)) {
+    return {
+      reply: "Natural Drift gently modulates active layer volumes by ±5–10% over slow cycles so background soundscapes feel organic and never repeat like a static loop.",
+      mood: "calm",
+      mix: {},
+      changes: "Explained Natural Drift.",
+    };
+  }
+
+  if (/(?:how\s+does\s+(?:the\s+)?sleep\s+timer|how\s+does\s+(?:the\s+)?timer|sleep\s+timer\s+features?)/i.test(text)) {
+    return {
+      reply: "The Sleep Timer counts down live in the bottom dock and softly fades out your soundscape over 30 seconds before pausing playback. You can set it via the UI slider or say 'sleep in 30 mins' or 'sleep timer 10s'.",
+      mood: "sleepy",
+      mix: {},
+      changes: "Explained Sleep Timer.",
+    };
+  }
+
+  if (/(?:save\s+(?:a\s+)?mix|saved\s+mixes|how\s+to\s+save)/i.test(text)) {
+    return {
+      reply: "Sign in and click 'Save Mix' in the top right or bottom dock to save your current soundscape to your account. You can rename, delete, or reload it anytime, or trigger 'Play my usual'!",
+      mood: "calm",
+      mix: {},
+      changes: "Explained Saved Mixes.",
+    };
+  }
+
+  if (/(?:shortcuts|keyboard\s+shortcuts|hotkeys)/i.test(text)) {
+    return {
+      reply: "Keyboard shortcuts: Space (Play/Pause), M (Mute/Unmute), and Esc (Close dialogs and drawers).",
+      mood: "calm",
+      mix: {},
+      changes: "Explained Keyboard Shortcuts.",
+    };
+  }
+
+  // Out-of-scope / general knowledge check (app-only assistant refusal)
+  if (/(?:factorial|\bcode\b|python|javascript|java|c\+\+|html|css|sql|math|\d+\s*[\+\-\*\/]\s*\d+|capital\s+of|recipe|who\s+is|who\s+was|who\s+won|joke|calculate|derivative|integral|equation|weather|president|population|translate|poem|flight|hotel|ticket|movie|game|news|sports)/i.test(text)) {
+    return {
+      reply: "I'm specifically the assistant for Ambient Sound Studio! I can only help you explore ambient soundscapes (Rain, Coffee Shop, Fireplace, Nature), set sleep timers, adjust audio levels, or explain app features. I can't answer general questions or math/coding problems, but I'd be happy to play a quiet focus mix if you're studying!",
       mood: "focused",
       mix: {},
       changes: "No sound changes for off-topic query.",
@@ -144,15 +217,12 @@ function generateMockChat(userText, currentMix = {}) {
     };
   }
 
+  // Fallback for general or unrecognized queries: strictly maintain app-only identity without touching mix
   return {
-    reply: "Adjusted the ambience to match your space.",
+    reply: "I'm specifically the assistant for Ambient Sound Studio! I can help you create ambient soundscapes (Rain, Coffee Shop, Fireplace, Nature), set sleep timers, adjust sound levels, or answer questions about this app's features. Would you like a focus or relaxation mix?",
     mood: "calm",
-    mix: {
-      rain: 40,
-      window: 30,
-      fire: 20,
-    },
-    changes: "Created a balanced, calming mix.",
+    mix: {},
+    changes: "No sound changes for unrecognized query.",
   };
 }
 

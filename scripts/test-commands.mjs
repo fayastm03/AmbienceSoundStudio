@@ -280,7 +280,47 @@ test("Assistant Commands - Saved mix fuzzy matching", () => {
   assert.equal(playCoffee?.actions[0]?.mix?.name, "Coffee Morning");
 });
 
+test("Assistant Commands - App Features & Knowledge Base", () => {
+  const appOverview = parseCommand("what is this app", mockContext);
+  assert.ok(appOverview?.reply.includes("Ambient Sound Studio"));
+  assert.equal(appOverview?.actions?.length, 0);
+
+  const features = parseCommand("what features do you have", mockContext);
+  assert.ok(features?.reply.includes("4 Soundscapes"));
+  assert.ok(features?.reply.includes("Procedural Web Audio"));
+
+  const sounds = parseCommand("what sounds are available", mockContext);
+  assert.ok(sounds?.reply.includes("Rain"));
+  assert.ok(sounds?.reply.includes("Nature (Procedural)"));
+  assert.equal(sounds?.actions?.length, 0);
+
+  const nature = parseCommand("nature channel", mockContext);
+  assert.ok(nature?.reply.includes("Web Audio API"));
+  assert.ok(nature?.reply.includes("zero audio files"));
+  assert.equal(nature?.actions?.length, 0);
+
+  const drift = parseCommand("how does natural drift work", mockContext);
+  assert.ok(drift?.reply.includes("Natural Drift"));
+  assert.equal(drift?.actions?.length, 0);
+
+  const timer = parseCommand("how does sleep timer work", mockContext);
+  assert.ok(timer?.reply.includes("Sleep Timer"));
+  assert.equal(timer?.actions?.length, 0);
+
+  const save = parseCommand("how to save a mix", mockContext);
+  assert.ok(save?.reply.includes("Save Mix"));
+  assert.equal(save?.actions?.length, 0);
+
+  const shortcuts = parseCommand("keyboard shortcuts", mockContext);
+  assert.ok(shortcuts?.reply.includes("Space"));
+  assert.ok(shortcuts?.reply.includes("Mute"));
+  assert.equal(shortcuts?.actions?.length, 0);
+});
+
 test("Assistant Commands - Unknown commands & gibberish return null", () => {
+  assert.equal(parseCommand("find factorial of 9", mockContext), null);
+  assert.equal(parseCommand("1+2", mockContext), null);
+  assert.equal(parseCommand("how to write python code", mockContext), null);
   assert.equal(parseCommand("book a flight to Paris", mockContext), null);
   assert.equal(parseCommand("what is the capital of France", mockContext), null);
   assert.equal(parseCommand("tell me a joke", mockContext), null);

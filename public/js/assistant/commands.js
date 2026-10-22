@@ -116,14 +116,27 @@ export function matchTarget(text) {
     }
   }
 
-  // 3. Typo-tolerant distance match on individual tokens
+  // 3. Typo-tolerant distance match (only for single target names or max 2 tokens, not sentences)
   const tokens = norm.split(" ").filter((t) => t.length > 2);
-  for (const token of tokens) {
-    for (const entry of TARGET_MAP) {
-      for (const kw of entry.keywords) {
-        const threshold = kw.length >= 6 ? 2 : kw.length >= 4 ? 1 : 0;
-        if (levenshtein(token, kw) <= threshold) {
-          return entry;
+  if (tokens.length <= 2) {
+    const NON_TARGET_WORDS = new Set([
+      "find", "mind", "kind", "bind", "fine", "line", "mine", "file", "tire", "wire",
+      "pain", "gain", "main", "train", "drain", "brain", "good", "mood", "food", "wood",
+      "room", "root", "calculate", "solve", "math", "code", "app", "help", "what", "how",
+      "why", "when", "who", "tell", "explain", "about", "factorial", "show", "list",
+      "more", "less", "turn", "make", "want", "like", "need", "play", "start", "stop"
+    ]);
+
+    for (const token of tokens) {
+      if (NON_TARGET_WORDS.has(token)) continue;
+      for (const entry of TARGET_MAP) {
+        for (const kw of entry.keywords) {
+          // Do NOT allow single-character typos on short 3-4 letter words (e.g. wind, rain, fire, roof, bird, wave)
+          // because English words like find/mind/pain/file/tire collide.
+          const threshold = kw.length >= 7 ? 2 : kw.length >= 5 ? 1 : 0;
+          if (threshold > 0 && levenshtein(token, kw) <= threshold) {
+            return entry;
+          }
         }
       }
     }
@@ -427,11 +440,83 @@ export function parseCommand(rawText, ctx = {}) {
     };
   }
 
-  // 8. Help
-  if (/^(help|commands|what can you do|examples|what can i say)$/i.test(stripped)) {
+  // 8. Help & App Features Knowledge Base
+  if (/^(help|commands|what can i say|examples)$/i.test(stripped)) {
     return {
       actions: [{ type: "help" }],
-      reply: "You can ask: 'more rain', 'more birds', 'less chatter', 'volume 50%', 'sleep in 30 mins', 'warmer', 'surprise me', 'what's playing', 'reset', or 'undo'."
+      reply: "You can ask: 'more rain', 'more birds', 'less chatter', 'volume 50%', 'sleep in 30 mins', 'warmer', 'surprise me', 'what's playing', 'reset', or 'undo'. You can also ask me about app features!"
+    };
+  }
+
+  // 8b. App Overview / "what is this app"
+  if (/^(?:what\s+is\s+this\s+app|what\s+does\s+this\s+app\s+do|about\s+this\s+app|about\s+ambient\s+sound\s+studio|tell\s+me\s+about\s+this\s+app)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "Ambient Sound Studio is an ambient soundscape mixer designed for focused work, deep study, reading, relaxation, and sleep. You can blend 4 multi-track acoustic environments (Rain, Coffee Shop, Fireplace, and procedural Nature), customize 14 individual layers, use the AI Mood Mixer, set sleep timers with smooth auto-fadeouts, and save personal mixes."
+    };
+  }
+
+  // 8c. App Features / "what features do you have" / "what can this app do" / "what can you do"
+  if (/^(?:features|app\s+features|feature\s+list|list\s+features|what\s+features(?:\s+do\s+you\s+have|\s+are\s+there)?|what\s+can\s+this\s+app\s+do|what\s+can\s+you\s+do)$/i.test(stripped)) {
+    return {
+      actions: [{ type: "help" }],
+      reply: "Key features of Ambient Sound Studio:\n• 4 Soundscapes: Rain, Coffee Shop, Fireplace, and 100% procedural Nature\n• 14 Acoustic Layers: Fine-tune crackle, distant thunder, espresso, crickets, waves, and bird chirps\n• Procedural Web Audio: Synthesized nature sounds with zero audio files & zero CPU on silence\n• Natural Drift: Subtle organic volume fluctuations to prevent repetitive loops\n• Sleep Timer: Live countdown in the dock with a gentle 30-second exponential audio fadeout\n• AI Mood Mixer & Assistant: Smart sound generation and natural language adjustments\n• Saved Mixes: Cloud-saved soundscapes with 1-click 'Play my usual'\n• Keyboard Shortcuts: Space (Play/Pause), M (Mute), Esc (Close panels)"
+    };
+  }
+
+  // 8d. Available Sounds & Channels
+  if (/^(?:what\s+sounds(?:\s+do\s+you\s+have|\s+are\s+available)?|available\s+sounds|sound\s+list|available\s+channels|what\s+channels(?:\s+do\s+you\s+have|\s+are\s+available)?|soundscapes)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "Ambient Sound Studio includes 4 soundscapes with 14 customizable layers:\n• Rain: Heavy rain, Light rain, Rain on window, Rain on roof, Distant thunder\n• Coffee Shop: Cafe atmosphere, Espresso machine, Background chatter\n• Fireplace: Fire crackle, Burning firewood, Glowing embers\n• Nature (Procedural): Wind, Flowing stream, Ocean waves, Crickets, Bird chirps"
+    };
+  }
+
+  // 8e. Nature Channel / Procedural synthesis explanation
+  if (/^(?:what\s+is\s+nature(?:\s+channel)?|nature\s+channel|how\s+does\s+nature\s+work|how\s+are\s+nature\s+sounds\s+generated|procedural\s+nature|procedural\s+sounds|procedural\s+audio)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "The Nature channel is 100% procedurally synthesized in real-time using the browser's Web Audio API—zero audio files! It generates Wind (band-pass filtered noise), Flowing Stream (filtered noise with gain ripples), Ocean Waves (slow swelling low-pass noise), Crickets (dual LFO-pulsed oscillators), and Birds (organic randomized pitch sweeps). When any layer slider is at 0%, its audio nodes are suspended to use zero CPU."
+    };
+  }
+
+  // 8f. Natural Drift explanation
+  if (/^(?:what\s+is\s+(?:natural\s+)?drift|how\s+does\s+(?:natural\s+)?drift\s+work|explain\s+(?:natural\s+)?drift|(?:natural\s+)?drift)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "Natural Drift adds organic acoustic movement to your soundscape. When enabled, it gently modulates active layer volumes by ±5–10% over slow, natural cycles so the ambience feels alive and never repeats like a static audio loop."
+    };
+  }
+
+  // 8g. Sleep Timer explanation
+  if (/^(?:how\s+does\s+(?:the\s+)?sleep\s+timer\s+work|how\s+does\s+(?:the\s+)?timer\s+work|tell\s+me\s+about\s+(?:the\s+)?sleep\s+timer|sleep\s+timer\s+features?)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "The Sleep Timer automatically pauses your audio after a chosen duration. You can set it using the slider or by saying 'sleep in 30 mins' or 'sleep timer 10s'. It displays a live countdown in the bottom dock and assistant banner, and smoothly fades out your audio over 30 seconds before stopping."
+    };
+  }
+
+  // 8h. Saved Mixes explanation
+  if (/^(?:how\s+do\s+i\s+save\s+(?:a\s+)?mix|how\s+to\s+save\s+(?:a\s+)?mix|how\s+does\s+saving\s+work|saved\s+mixes|how\s+do\s+saved\s+mixes\s+work)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "To save a mix, sign in and click 'Save Mix' in the top right or bottom dock. Give it a name and it will be stored to your account. You can rename, delete, or load it anytime with one click. The app also learns your favorite combination and lets you trigger it with 'Play my usual'!"
+    };
+  }
+
+  // 8i. Keyboard Shortcuts explanation
+  if (/^(?:keyboard\s+shortcuts|shortcuts|hotkeys|key\s*bindings|what\s+shortcuts(?:\s+are\s+there)?)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "Keyboard shortcuts in Ambient Sound Studio:\n• Space: Play / Pause audio playback\n• M: Mute / Unmute all soundscapes\n• Esc: Close active dialogs, drawer panels, and overlays"
+    };
+  }
+
+  // 8j. AI Mood Mixer explanation
+  if (/^(?:what\s+is\s+(?:ai\s+)?mood\s+mixer|how\s+does\s+mood\s+mixer\s+work)$/i.test(stripped)) {
+    return {
+      actions: [],
+      reply: "The AI Mood Mixer creates personalized soundscapes from descriptive prompts (like 'cabin in a snowstorm' or 'late night coffee shop'). It balances channel volumes and layer accents to evoke your desired atmosphere."
     };
   }
 
@@ -510,8 +595,22 @@ export function parseCommand(rawText, ctx = {}) {
     }
   }
 
-  // 13. "set X to N%" or "X to N%" or "X N%"
-  const setTargetMatch = stripped.match(/^(?:set\s+)?(.+?)\s+(?:to\s+|at\s+)?(\d{1,3})\s*%?$/i);
+  // 13. "set X to N%", "set X N%", "set X N", "X to N%", "X to N", "X N%", "X volume N"
+  // Must require explicit volume adjustment syntax:
+  // a) Verb: set|put|turn|change|adjust
+  // b) Preposition: to|at
+  // c) Explicit percentage: %
+  // d) Keyword: volume|level
+  let setTargetMatch = stripped.match(/^(?:set|put|turn|change|adjust)\s+(.+?)(?:\s+(?:to|at))?\s+(\d{1,3})\s*%?$/i);
+  if (!setTargetMatch) {
+    setTargetMatch = stripped.match(/^(.+?)\s+(?:to|at)\s+(\d{1,3})\s*%?$/i);
+  }
+  if (!setTargetMatch) {
+    setTargetMatch = stripped.match(/^(.+?)\s+(\d{1,3})\s*%$/i);
+  }
+  if (!setTargetMatch) {
+    setTargetMatch = stripped.match(/^(.+?)\s+(?:volume|level)\s+(?:to|at)?\s*(\d{1,3})\s*%?$/i);
+  }
   if (setTargetMatch) {
     const targetPart = setTargetMatch[1];
     const pct = parseInt(setTargetMatch[2], 10);
