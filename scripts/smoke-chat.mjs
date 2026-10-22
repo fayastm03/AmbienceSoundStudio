@@ -230,4 +230,15 @@ const unauthRecRes = await request("/api/chat/record", {
 expect(200, unauthRecRes.status, "record status");
 assert.equal(unauthRecRes.body.ok, false, "unauthenticated cannot record");
 
+// 9. Off-topic query (e.g. math / factorial) -> polite decline and empty mix {}
+console.log("[smoke-chat] 9. Testing off-topic query decline...");
+testUserId = "user-smoke-123";
+const offTopicRes = await request("/api/chat", {
+  method: "POST",
+  body: JSON.stringify({ message: "how to find factorial of a number" }),
+});
+expect(200, offTopicRes.status, "off-topic response status");
+assert.ok(offTopicRes.body.reply.includes("Ambient Sound Studio"), "reply should identify as Ambient Sound Studio assistant");
+assert.deepEqual(offTopicRes.body.mix, {}, "off-topic queries should not alter sounds (mix must be empty)");
+
 console.log("[smoke-chat] All smoke tests passed successfully!");

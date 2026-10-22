@@ -51,6 +51,16 @@ function generateMockChat(userText, currentMix = {}) {
     };
   }
 
+  // Out-of-scope / general knowledge check (app-only assistant)
+  if (/(?:factorial|\bcode\b|python|javascript|java|c\+\+|math|\d+\s*[\+\-\*\/]\s*\d+|capital of|recipe|who is|joke|calculate|derivative|integral|equation)/i.test(text)) {
+    return {
+      reply: "I'm exclusively your Ambient Sound Studio assistant for ambient sounds, sleep timers, and mood mixes. I can't answer general questions or math problems, but I'd be happy to play a quiet focus mix if you're studying!",
+      mood: "focused",
+      mix: {},
+      changes: "No sound changes for off-topic query.",
+    };
+  }
+
   if (/(?:warmer|warm|cozier|cozy)/i.test(text)) {
     const curFire = Number(currentMix.fire ?? 30);
     const curCrackle = Number(currentMix.crackle ?? 20);
