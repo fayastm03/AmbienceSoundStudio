@@ -9,7 +9,7 @@ export function contrastRatio(fg, bg) { const light = Math.max(luminance(fg), lu
 export function ensureContrast(fg, bg, ratio) { let candidate = [...fg]; const direction = luminance(fg) > luminance(bg) ? 1 : -1; for (let i = 0; i < 100 && contrastRatio(candidate, bg) < ratio; i += 1) candidate = candidate.map((value) => Math.max(0, Math.min(255, value + direction * 2.55))); return candidate; }
 const mix = (a, b, amount) => a.map((value, index) => value * (1 - amount) + b[index] * amount);
 const css = (rgb) => `rgb(${rgb.map(Math.round).join(", ")})`;
-const tokenNames = ["bg", "surface", "surface-2", "text", "text-muted", "border", "track", "accent", "accent-fill"];
+const tokenNames = ["bg", "surface", "surface-2", "text", "text-muted", "border", "track", "accent", "accent-fill", "accent-soft", "mood-wash", "mood-glow", "mood-glow-2"];
 let currentTokens;
 let transitionFrame = 0;
 let transitionTo;
@@ -57,7 +57,10 @@ export function applyTheme(state, playing, configs) {
   const mood = total ? ["bg", "accent"].reduce((out, key) => { out[key] = active.reduce((sum, item) => sum.map((value, index) => value + item.config.accent[mode][index] * item.weight), [0, 0, 0]).map((value) => value / total); return out; }, {}) : neutral[mode];
   const tokens = base[mode];
   const bg = mode === "light" ? mix(neutral.light.bg, mood.bg || neutral.light.bg, .15) : mix(neutral.dark.bg, mood.bg || neutral.dark.bg, .15);
-  const surface = mode === "light" ? [248, 250, 251] : [32, 43, 46];
+  const moodWash = mode === "light" ? mix(neutral.light.bg, mood.bg || neutral.light.bg, .28) : mix(neutral.dark.bg, mood.bg || neutral.dark.bg, .25);
+  const surface = mode === "light" ? mix([248, 250, 251], mood.bg || [248, 250, 251], .07) : mix([32, 43, 46], mood.bg || [32, 43, 46], .09);
+  const glow = mood.accent || neutral[mode].accent;
+  const glowSecondary = mix(glow, mood.bg || glow, .38);
   const accent = ensureContrast(mix(tokens.accentFill, mood.accent || tokens.accentFill, .2), surface, 3);
   const nextTokens = {
     bg,
@@ -69,6 +72,10 @@ export function applyTheme(state, playing, configs) {
     track: tokens.track,
     accent: ensureContrast(mix(accent, mood.accent || accent, .1), surface, 4.5),
     "accent-fill": accent,
+    "accent-soft": mix(surface, glow, mode === "light" ? .14 : .22),
+    "mood-wash": moodWash,
+    "mood-glow": glow,
+    "mood-glow-2": glowSecondary,
   };
   transitionTokens(nextTokens);
   document.body.dataset.theme = mode;

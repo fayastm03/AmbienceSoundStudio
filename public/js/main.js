@@ -8,6 +8,8 @@ import { bindControls } from "./ui/controls.js";
 import { applyTheme } from "./ui/theme.js";
 import { updateVisuals } from "./ui/visuals.js";
 import { bindMoodMixer } from "./ui/mood-mixer.js";
+import { bindAuth } from "./ui/auth.js";
+import { bindSavedMixes } from "./ui/saved-mixes.js";
 
 const state = loadState();
 let generated = new Set();
@@ -24,7 +26,9 @@ document.querySelector("#naturalDrift").addEventListener("change", (event) => { 
 document.querySelectorAll("[data-theme-choice]").forEach((button) => button.addEventListener("click", () => { setTheme(button.dataset.themeChoice); render(engine.context?.state === "running"); }));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && panel) panel.close(); });
 render(false);
-bindMoodMixer({ configs: soundscapes, state, engine, render });
+const savedMixes = bindSavedMixes({ soundscapes, state, engine, render });
+bindMoodMixer({ configs: soundscapes, state, engine, render, onSaveAiMix: (mix) => savedMixes.open(mix.name, "ai") });
+bindAuth();
 saveState();
 
 function setMessage(text) {

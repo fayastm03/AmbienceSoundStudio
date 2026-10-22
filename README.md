@@ -1,71 +1,129 @@
 # Ambient Sound Studio
 
-A vanilla Web Audio soundscape mixer for rain, coffee shop, and fireplace layers.
+Ambient Sound Studio is a vanilla Web Audio soundscape mixer for rain, coffee
+shop, and fireplace layers. The app works fully in guest mode. Signed-in users
+can save, browse, apply, rename, and delete custom soundscape mixes across visits.
 
-## Run
+## Setup
 
-From the project directory, run `python3 -m http.server 8000`, then open <http://localhost:8000>.
+1. Install Node.js 20 or newer and MongoDB.
+2. Install dependencies:
 
-## Structure
+   ```bash
+   npm install
+   ```
 
-- `index.html` - application shell
-- `css/` - base, theme, layout, and component styles
-- `js/` - audio, UI, configuration, and state modules
-- `sounds/` - prepared loop-ready MP3 files
+3. Copy `.env.example` to `.env` and fill in the required values:
 
-Features include layered playback, procedural fallbacks, per-layer controls, saved settings, Light/Dark/Auto themes, mood-tinted but contrast-safe colours, keyboard shortcuts, responsive detail panels, reduced-motion support, natural drift, random loop offsets, stereo panning, calibrated `gainDb` trims, and a debug overlay at `?debug=1`.
+   ```text
+   MONGODB_URI=
+   SESSION_SECRET=
+   NODE_ENV=development
+   PORT=3000
+   ```
+
+   `SESSION_SECRET` must be at least 32 characters. `PROVIDER`,
+   `GEMINI_API_KEY`, `GEMINI_MODEL`, and `MIX_MOCK` are optional. If the Gemini
+   values are absent, `/api/mix` uses the keyword fallback. Set `MIX_MOCK=1`
+   to force that fallback.
+
+4. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+   Open <http://localhost:3000>. Production uses `npm start`.
+
+The server validates required environment variable names at startup and never
+prints their values. `GET /api/health` reports `{ "ok": true }` and the
+MongoDB connection state.
+
+## Front end and audio preparation
+
+The browser application lives in `public/`. Audio files are served only from
+`public/sounds/`; the project root is never exposed by Express. To prepare raw
+audio, write output under the public directory:
+
+```bash
+./prep.sh raw/rain public/sounds/rain
+```
+
+Keep `raw/` out of version control. Edit
+[public/js/config/soundscapes.js](public/js/config/soundscapes.js) to add
+layers. The audio engine and its guest-mode behavior do not depend on
+authentication.
+
+## Saved mixes
+
+Signed-in users can manage up to 50 custom mixes from the "My mixes" panel in the
+header or save an AI-generated mood mix directly:
+
+- **Panel**: Slide-in dialog with labelled controls, focus trap, and Escape dismissal.
+- **Save current mix**: Reads live channel and layer volumes from the store (master volume is deliberately not saved).
+- **Apply mix**: Animates channel and layer sliders to the saved balance over ~1.5s using smoothed gain setters; any layer at 0 remains completely silent with zeroed drift.
+- **Rename & Delete**: Inline renaming and two-step confirmation on deletion.
+- **AI mix integration**: Successful AI mood mixes display a "Save this mix" button pre-filling the title and marking source as `"ai"`.
+- **Guest mode**: "My mixes" and "Save this mix" buttons remain visible for guests; clicking prompts the user to sign in without interrupting audio playback or throwing uncaught errors.
+
+### API Endpoints (`/api/mixes`)
+
+All endpoints require active session authentication (`requireAuth`):
+
+- `GET /api/mixes`: Lists the user's saved mixes, newest first.
+- `POST /api/mixes`: Creates a mix (max 50 per user; returns `409 Conflict` beyond that). Maximum body size is 8 KB. Validates channels and layers with Zod against the soundscape catalog, requiring levels from 0 to 1 and rejecting unknown or extra fields.
+- `PATCH /api/mixes/:id`: Renames a mix (1-40 characters).
+- `DELETE /api/mixes/:id`: Removes a mix.
+
+Every operation filters strictly by `{ _id, userId }` using the session's `userId`. Any non-matching mix or invalid ObjectId returns `404 Not Found` to prevent cross-user ID probing. Rate limiting permits 60 requests per minute per user on `/api/mixes`.
+
+## Security choices
+
+- Passwords are hashed with Argon2id and are never returned.
+- Login uses a dummy hash for unknown emails and returns one generic failure
+  message for both unknown users and wrong passwords.
+- Sessions use MongoDB storage, a 14-day `ass.sid` httpOnly cookie, SameSite
+  lax, and secure cookies in production. Login regenerates the session.
+- State-changing requests require JSON and a same-origin Origin or Referer.
+- API, registration, login, and mix rate limits are enabled.
+- Helmet sends a Content-Security-Policy allowing only same-origin scripts,
+  audio, connections, and styles. No inline styles or scripts are required.
+- Error responses are generic and server logs never contain request bodies,
+  passwords, email addresses, user text, or API keys.
+
+## Smoke tests
+
+Run the authentication smoke test against a running server with a reachable MongoDB:
+
+```bash
+npm run smoke:auth
+```
+
+Run the saved mixes smoke test (tests guest 401s, creation, listing, renaming, deletion, Zod validation rejections, payload limits, and cross-user isolation):
+
+```bash
+npm run smoke:mixes
+```
 
 ## AI mood mixer
 
-The mood mixer sends the 200-character description and the channel/layer catalog from `js/config/soundscapes.js` to `/api/mix`. It validates and clamps the response, animates the result over two seconds, and falls back to local keyword presets for sleep, focus, reading, calm, cosy, and storm. Requests have a three-second client cooldown.
+`POST /api/mix` accepts a 200-character description and the channel/layer
+catalog, validates and clamps the response, includes `source` and `latencyMs`,
+and applies a 20-second upstream timeout. Gemini is called only on the server
+with `x-goog-api-key`; the browser never receives the key. If Gemini is
+rate-limited, unavailable, or times out, the server returns a local keyword mix
+with `source: "keyword"` and a safe `fallbackReason`, so the audio experience
+continues without an error state.
 
-The shared server function is [netlify/functions/mix.js](netlify/functions/mix.js). Netlify runs it directly, while [api/mix.js](api/mix.js) adapts the same handler for Vercel. It uses Google Gemini by default. Create a key at <https://aistudio.google.com/> and set these variables:
+The previous Netlify function, `netlify.toml`, and Vercel adapter were removed;
+the Express server is now the single same-origin application server.
 
-```text
-PROVIDER=gemini
-GEMINI_API_KEY=
-GEMINI_MODEL=
-MIX_MOCK=
-```
+## Deployment
 
-`GEMINI_MODEL` is required when calling the real API; there is intentionally no hardcoded model name. Set `MIX_MOCK=1` to test without a key. The key is sent only from the server in the `x-goog-api-key` header and is never sent to the browser. See [.env.example](.env.example) for the empty local template.
-
-For local testing, use Netlify Dev so `/api/mix` routes to the function. If your Netlify CLI version does not automatically import `.env`, export the values in the same shell before starting it:
-
-```bash
-set -a
-source .env
-set +a
-npx netlify-cli dev
-```
-
-Netlify CLI prints the local port it selected (commonly `8888`); open that printed URL rather than the static `python3 -m http.server` port. Set the variables in the Netlify dashboard, or in a local uncommitted `.env` file:
-
-```text
-PROVIDER=gemini
-GEMINI_API_KEY=your-key
-GEMINI_MODEL=your-model-name
-MIX_MOCK=0
-```
-
-The function logs only whether `PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `MIX_MOCK` are set or missing. It never logs their values or the user's prompt.
-
-The server waits up to 20 seconds for Gemini, but Netlify's synchronous function timeout depends on the site's plan/runtime and may be shorter. A platform timeout can therefore end the request before the application timeout; the client has a separate 25-second abort.
-
-The request uses `thinkingConfig`: `thinkingBudget: 0` for non-Gemini-3 model names and `thinkingLevel: "minimal"` for Gemini-3 model names. Google documents these controls for different model generations; support for the user-supplied `gemini-3.5-flash` name specifically should be confirmed against the model's current API metadata. The response parser ignores parts marked `thought` and concatenates the remaining text parts.
-
-Google's free-tier terms may allow prompts sent to some Gemini products to be used to improve Google products. Review the current Google AI Studio/Gemini privacy and data-use terms before sending sensitive text.
-
-### If the API is rate-limited
-
-The function allows about eight requests per IP per minute as a best-effort in-memory limit. Gemini HTTP 429 responses return `AI is busy, try again in a minute`; the client then uses its local keyword mixer and displays `AI is busy, using quick mode`. This serverless memory limit is not a durable global rate limiter, so use platform controls for production enforcement.
-
-Deploy by linking the project with `netlify init` and running `netlify deploy --prod`, or connect the repository in Netlify. Set the same variables in the Netlify dashboard and keep `.env` out of version control.
-
-### Vercel deployment
-
-For Vercel, the `/api/mix` entry point is [api/mix.js](api/mix.js). Add `PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `MIX_MOCK=0` under the Vercel project’s **Settings → Environment Variables** for the **Production** environment, then redeploy. Vercel does not read your local `.env` file during a Git deployment, and `.env` must remain uncommitted.
-
-## Tuning
-
-Edit only [js/config/soundscapes.js](js/config/soundscapes.js) to add layers. `gainDb` is a fixed per-layer trim applied before the layer volume; use it to make sparse sounds sit behind dense ambience. `pan` is the stereo position from `-1` (left) to `1` (right). The prepared MP3 files in `sounds/` are loop-ready and should not be re-encoded.
+Deploy to a Node.js host that can run `npm start` and reach MongoDB over the
+network. Set the environment variables in the host's secret configuration,
+including a production `NODE_ENV` and a strong `SESSION_SECRET`. When the host
+is behind one trusted reverse proxy, Express uses `trust proxy` in production
+so secure cookies work correctly. Restrict MongoDB network access to the
+deployment host or its private network, and terminate HTTPS at the host or
+trusted proxy.

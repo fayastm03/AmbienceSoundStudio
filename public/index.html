@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#e9edf2">
+    <title>Ambient Sound Studio</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+  </head>
+  <body>
+    <main class="studio">
+      <header class="topbar">
+        <div><p class="kicker">Personal soundscape</p><h1>Ambient <em>Sound</em> Studio</h1></div>
+        <div class="header-actions"><button type="button" id="mixesOpen" class="auth-button">My mixes</button><div id="authStatus" class="auth-status"></div><button type="button" id="authOpen" class="auth-button">Sign in</button><div class="theme-control"><span>Theme</span><div class="theme-options" role="group" aria-label="Choose colour theme">
+          <button type="button" data-theme-choice="light">Light</button><button type="button" data-theme-choice="auto">Auto</button><button type="button" data-theme-choice="dark">Dark</button>
+        </div></div></div>
+      </header>
+      <section class="mood-mixer" aria-labelledby="moodTitle">
+        <div class="mood-copy">
+          <p class="kicker" id="moodTitle">AI mood mixer</p>
+          <p>Describe the moment you want to settle into.</p>
+        </div>
+        <form id="moodForm" class="mood-form">
+          <label class="sr-only" for="moodInput">Describe your moment</label>
+          <input id="moodInput" name="mood" type="text" maxlength="200" placeholder="Describe your moment..." autocomplete="off">
+          <button id="moodButton" type="submit">Create mix</button>
+        </form>
+        <p id="moodStatus" class="mood-status" role="status" aria-live="polite"></p>
+        <div class="mood-result-row">
+          <p id="moodExplanation" class="mood-explanation" aria-live="polite"></p>
+          <button type="button" id="moodSaveButton" class="mood-save-button" hidden>Save this mix</button>
+        </div>
+      </section>
+      <section class="intro"><div class="intro-copy"><span class="signal" aria-hidden="true"></span><div><p class="eyebrow">Your quiet corner</p><p class="subtle">Blend three familiar places into one focused moment.</p></div></div><div class="keyboard-hint"><kbd>Space</kbd> play/pause <kbd>M</kbd> mute</div></section>
+      <section class="channels" id="channels" aria-label="Sound channels"></section>
+      <section class="transport" aria-label="Playback controls">
+        <button class="play-button" id="playButton" type="button" aria-pressed="false"><span id="playIcon" aria-hidden="true">▶</span><span id="playText">Play</span></button>
+        <button class="mute-button" id="muteButton" type="button" aria-pressed="false"><span aria-hidden="true">◖</span><span id="muteText">Mute</span></button>
+        <label class="drift-control"><input id="naturalDrift" type="checkbox" checked> Natural drift</label>
+        <div class="master-control"><label for="masterVolume">Master</label><input id="masterVolume" type="range" min="0" max="100" value="78" aria-label="Master volume"><output id="masterValue">78%</output></div>
+      </section>
+      <div class="loading" id="loading" hidden><span>Loading sound library</span><progress id="loadProgress" max="100" value="0"></progress><span id="loadLabel">0%</span></div>
+      <p class="message" id="audioMessage" role="status" aria-live="polite"></p>
+      <footer>Audio stays in your browser · choose a sound, find your rhythm</footer>
+    </main>
+    <aside class="debug-panel" id="debugPanel" hidden aria-label="Audio debug information">
+      <strong>Audio debug</strong><div class="debug-meter"><span id="debugPeak"></span></div><span id="debugPeakLabel">Peak -∞ dB</span><div id="debugLayers"></div>
+    </aside>
+    <aside class="detail-panel" id="detailPanel" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="panel-backdrop" data-close-panel></div><div class="panel-content">
+        <div class="panel-header"><div><p class="kicker">Channel layers</p><h2 id="detailTitle"></h2></div><button class="close-button" id="closePanel" type="button" aria-label="Close details">×</button></div>
+        <p class="detail-description" id="detailDescription"></p>
+        <label class="slider-label" for="detailChannelVolume"><span>Channel volume</span><output id="detailChannelValue">0%</output></label><input id="detailChannelVolume" type="range" min="0" max="100" aria-label="Channel volume">
+        <div class="layer-list" id="layerList"></div>
+        <button class="reset-button" id="resetLayers" type="button">Reset layers</button>
+      </div>
+    </aside>
+    <aside class="detail-panel mixes-panel" id="mixesPanel" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="mixesTitle">
+      <div class="panel-backdrop" data-close-mixes></div>
+      <div class="panel-content">
+        <div class="panel-header">
+          <div>
+            <p class="kicker">Personal library</p>
+            <h2 id="mixesTitle">My mixes</h2>
+          </div>
+          <button class="close-button" id="closeMixes" type="button" aria-label="Close saved mixes">×</button>
+        </div>
+        <p class="detail-description">Save your current soundscape balance or restore any of your saved moments.</p>
+        <p id="mixesStatus" class="mixes-status" role="status" aria-live="polite"></p>
+        <div id="mixesGuestView" class="mixes-guest-view" hidden>
+          <div class="mixes-guest-card">
+            <h3>Sign in to save mixes</h3>
+            <p>Keep your custom mixes saved to your account and access them across visits.</p>
+            <button type="button" id="mixesSignInButton" class="auth-submit">Sign in</button>
+          </div>
+        </div>
+        <div id="mixesUserView" class="mixes-user-view">
+          <form id="saveMixForm" class="save-mix-row">
+            <label class="sr-only" for="saveMixName">Mix name</label>
+            <input id="saveMixName" name="name" type="text" maxlength="40" placeholder="Name this mix…" autocomplete="off" required>
+            <button id="saveMixSubmit" type="submit" class="save-mix-submit">Save</button>
+          </form>
+          <div class="mixes-list-section">
+            <div id="mixesUnavailable" class="mixes-feedback mixes-error" hidden>Saved mixes are temporarily unavailable. You can continue listening as a guest.</div>
+            <div id="mixesLoading" class="mixes-feedback" hidden>Loading your mixes…</div>
+            <div id="mixesEmpty" class="mixes-feedback" hidden>No saved mixes yet. Adjust the sliders and save your current mix above!</div>
+            <div id="mixesError" class="mixes-feedback mixes-error" hidden></div>
+            <ul id="mixesList" class="mixes-list" aria-label="Saved mixes list"></ul>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <div class="auth-modal" id="authModal" hidden>
+      <div class="auth-backdrop" data-auth-close></div>
+      <section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <div class="auth-dialog-header"><div><p class="kicker">Your studio</p><h2 id="authTitle">Sign in</h2></div><button type="button" class="close-button" id="authClose" aria-label="Close sign-in dialog">×</button></div>
+        <p class="auth-intro">Sign in to keep your studio ready across visits. You can continue as a guest at any time.</p>
+        <div id="authUnavailable" class="auth-unavailable-notice" hidden>Accounts are temporarily unavailable. You can continue using Ambient Sound Studio as a guest.</div>
+        <div class="auth-tabs" role="tablist" aria-label="Account actions"><button type="button" role="tab" id="signInTab" aria-controls="signInPanel" aria-selected="true" tabindex="0">Sign in</button><button type="button" role="tab" id="registerTab" aria-controls="registerPanel" aria-selected="false" tabindex="-1">Create account</button></div>
+        <p id="authError" class="auth-error" role="alert" aria-live="polite"></p>
+        <form id="signInPanel" class="auth-form" data-auth-form="login" role="tabpanel" aria-labelledby="signInTab">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" name="email" type="email" autocomplete="email" required>
+          <span id="loginEmailError" class="field-error" aria-live="polite"></span>
+          <label for="loginPassword">Password</label>
+          <div class="password-field">
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+            <button type="button" data-toggle-password="loginPassword">Show</button>
+          </div>
+          <span id="loginPasswordError" class="field-error" aria-live="polite"></span>
+          <button type="submit" class="auth-submit">Sign in</button>
+        </form>
+        <form id="registerPanel" class="auth-form" data-auth-form="register" role="tabpanel" aria-labelledby="registerTab" hidden>
+          <label for="registerName">Display name <span>(optional)</span></label>
+          <input id="registerName" name="displayName" type="text" maxlength="40" autocomplete="name">
+          <span id="registerNameError" class="field-error" aria-live="polite"></span>
+          <label for="registerEmail">Email</label>
+          <input id="registerEmail" name="email" type="email" autocomplete="email" required>
+          <span id="registerEmailError" class="field-error" aria-live="polite"></span>
+          <label for="registerPassword">Password <span>(10-128 characters)</span></label>
+          <div class="password-field">
+            <input id="registerPassword" name="password" type="password" minlength="10" maxlength="128" autocomplete="new-password" required>
+            <button type="button" data-toggle-password="registerPassword">Show</button>
+          </div>
+          <span id="registerPasswordError" class="field-error" aria-live="polite"></span>
+          <button type="submit" class="auth-submit">Create account</button>
+        </form>
+      </section>
+    </div>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
