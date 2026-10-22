@@ -81,14 +81,14 @@ const TARGET_MAP = [
   { id: "thunder", type: "layer", channelId: "rain", layerId: "thunder", label: "Thunder", keywords: ["thunder", "thunders", "thunderstorm", "lightning", "rumble"] },
   { id: "chatter", type: "layer", channelId: "coffee", layerId: "chatter", label: "Chatter", keywords: ["chatter", "chatting", "talking", "voices", "people", "crowd", "murmur", "background chatter"] },
   { id: "espresso", type: "layer", channelId: "coffee", layerId: "espresso", label: "Espresso", keywords: ["espresso", "espressos", "coffee machine", "steamer", "cups", "clinking"] },
-  { id: "crackle", type: "layer", channelId: "fire", layerId: "crackle", label: "Crackle", keywords: ["crackle", "crackling", "snaps", "pops", "crackles"] },
+  { id: "crackle", type: "layer", channelId: "fire", layerId: "crackle", label: "Crackle", keywords: ["crackle", "crackling", "snaps", "pops", "crackles", "fire crackle"] },
   { id: "firewood", type: "layer", channelId: "fire", layerId: "firewood", label: "Firewood", keywords: ["firewood", "wood", "logs", "timber"] },
   { id: "embers", type: "layer", channelId: "fire", layerId: "embers", label: "Embers", keywords: ["embers", "ember", "coals", "glow", "ashes"] },
   { id: "wind", type: "layer", channelId: "nature", layerId: "wind", label: "Wind", keywords: ["wind", "breeze", "gust", "draft", "air"] },
-  { id: "stream", type: "layer", channelId: "nature", layerId: "stream", label: "Stream", keywords: ["stream", "creek", "brook", "river", "flowing water"] },
+  { id: "stream", type: "layer", channelId: "nature", layerId: "stream", label: "Stream", keywords: ["stream", "creek", "brook", "river", "flowing water", "flowing stream", "water stream"] },
   { id: "birds", type: "layer", channelId: "nature", layerId: "birds", label: "Birds", keywords: ["birds", "bird", "chirp", "chirping", "songbird", "songbirds", "chirps"] },
   { id: "crickets", type: "layer", channelId: "nature", layerId: "crickets", label: "Crickets", keywords: ["crickets", "cricket", "cicada", "cicadas", "night sounds"] },
-  { id: "waves", type: "layer", channelId: "nature", layerId: "waves", label: "Waves", keywords: ["waves", "wave", "ocean", "surf", "tide", "sea"] },
+  { id: "waves", type: "layer", channelId: "nature", layerId: "waves", label: "Waves", keywords: ["waves", "wave", "ocean", "surf", "tide", "sea", "ocean waves", "ocean wave"] },
 ];
 
 // Match a string fragment to a soundscape channel or layer (exact or typo-tolerant)
@@ -538,6 +538,84 @@ export function parseCommand(rawText, ctx = {}) {
       ],
       reply: "Lowered background chatter for a quieter space."
     };
+  }
+
+  // 9b. Exclusive / Solo sound: "ocean waves, nothing else", "just rain", "only fireplace", "ocean waves only", "solo coffee"
+  let exclusiveTarget = null;
+  const exclMatch = text.match(/^(.+?)\s*(?:,\s*|\s+)(?:nothing\s+else|and\s+nothing\s+else|nothing\s+more)$/i)
+    || stripped.match(/^(.+?)\s*(?:,\s*|\s+)(?:nothing\s+else|and\s+nothing\s+else|nothing\s+more)$/i)
+    || text.match(/^(?:just|only|solo)\s+(?:the\s+)?(.+?)$/i)
+    || stripped.match(/^(?:just|only|solo)\s+(?:the\s+)?(.+?)$/i)
+    || text.match(/^(.+?)\s+(?:only|solo)$/i)
+    || stripped.match(/^(.+?)\s+(?:only|solo)$/i);
+  if (exclMatch) {
+    exclusiveTarget = matchTarget(exclMatch[1]);
+  }
+
+  if (exclusiveTarget) {
+    const levels = {};
+    soundscapes.forEach((cfg) => {
+      const isTargetChannel = exclusiveTarget.type === "channel" && exclusiveTarget.channelId === cfg.id;
+      const isTargetParent = exclusiveTarget.type === "layer" && exclusiveTarget.channelId === cfg.id;
+
+      if (isTargetChannel) {
+        const layers = {};
+        cfg.layers.forEach((l) => {
+          layers[l.id] = l.defaultVolume || 0.4;
+        });
+        levels[cfg.id] = { channel: 0.65, layers };
+      } else if (isTargetParent) {
+        const layers = {};
+        cfg.layers.forEach((l) => {
+          layers[l.id] = l.id === exclusiveTarget.layerId ? 0.70 : 0;
+        });
+        levels[cfg.id] = { channel: 0.65, layers };
+      } else {
+        const layers = {};
+        cfg.layers.forEach((l) => {
+          layers[l.id] = 0;
+        });
+        levels[cfg.id] = { channel: 0, layers };
+      }
+    });
+
+    return {
+      actions: [
+        { type: "preset", name: exclusiveTarget.label, levels },
+        { type: "play" }
+      ],
+      reply: `Playing only ${exclusiveTarget.label}, with all other sounds muted.`
+    };
+  }
+
+  // 9c. Play / turn on specific sound: "play ocean waves", "play rain", "turn on crickets", "start fire"
+  const playTargetMatch = stripped.match(/^(?:play|start|turn on|enable)\s+(?:the\s+)?(.+?)$/i);
+  if (playTargetMatch) {
+    const targetQuery = playTargetMatch[1];
+    const isSavedMixExact = ctx.savedMixes?.some((m) => normalize(m.name) === normalize(targetQuery));
+
+    if (!isSavedMixExact) {
+      const target = matchTarget(targetQuery);
+      if (target) {
+        if (target.type === "channel") {
+          return {
+            actions: [
+              { type: "target_set", target, value: 0.60 },
+              { type: "play" }
+            ],
+            reply: `Playing ${target.label}.`
+          };
+        }
+        return {
+          actions: [
+            { type: "target_set", target: { type: "channel", channelId: target.channelId, label: target.channelId }, value: 0.60 },
+            { type: "target_set", target, value: 0.65 },
+            { type: "play" }
+          ],
+          reply: `Playing ${target.label}.`
+        };
+      }
+    }
   }
 
   // 10. Keyword presets (sleep, focus, reading, calm, cosy, storm, forest, nature)

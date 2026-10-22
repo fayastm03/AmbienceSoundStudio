@@ -20,6 +20,53 @@ const ALLOWED_MOODS = [
   "energetic",
 ];
 
+const MOOD_SYNONYMS = {
+  relaxing: "calm",
+  soothing: "calm",
+  peaceful: "calm",
+  gentle: "calm",
+  serene: "calm",
+  tranquil: "calm",
+  nature: "calm",
+  ocean: "calm",
+  meditative: "calm",
+  chill: "calm",
+  productive: "focused",
+  study: "focused",
+  work: "focused",
+  concentrated: "focused",
+  tired: "sleepy",
+  bedtime: "sleepy",
+  rest: "sleepy",
+  restful: "sleepy",
+  night: "sleepy",
+  warm: "cozy",
+  comfy: "cozy",
+  comfort: "cozy",
+  fireside: "cozy",
+  anxious: "stressed",
+  overwhelmed: "stressed",
+};
+
+const MIX_KEY_ALIASES = {
+  ocean: "waves",
+  "ocean-waves": "waves",
+  wave: "waves",
+  bird: "birds",
+  birdsong: "birds",
+  creek: "stream",
+  river: "stream",
+  water: "stream",
+  cicadas: "crickets",
+  cicada: "crickets",
+  cricket: "crickets",
+  breeze: "wind",
+  fireplace: "fire",
+  campfire: "fire",
+  coffeeshop: "coffee",
+  cafe: "coffee",
+};
+
 const ALLOWED_MIX_KEYS = [
   "rain",
   "cafe",
@@ -88,6 +135,8 @@ CRITICAL APP-ONLY SCOPE RULES:
      Channels: rain, cafe, fire, nature.
      Layers: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers, wind, stream, birds, crickets, waves.
    - "changes": short description of adjustments made.
+   - EXCLUSIVE REQUESTS (e.g. "ocean waves, nothing else", "only rain", "just fire", "solo cafe", "play waves"):
+     Set the requested channel and layers to audible levels (50-70%), and explicitly set all other channels to 0 (rain: 0, cafe: 0, fire: 0, nature: 0 except the chosen channel)!
    - For relative requests like "warmer" or "less crowded", adjust relative to the current mix.
 
 Output valid JSON only with keys: "reply", "mood", "mix", "changes".`;
@@ -108,21 +157,29 @@ export function validateAndCleanResponse(rawText) {
   }
   const reply = parsed.reply.trim();
 
+  // Normalize mood through synonyms (e.g. "soothing" -> "calm", "relaxing" -> "calm")
+  let mood = typeof parsed.mood === "string" ? parsed.mood.toLowerCase().trim() : "";
+  if (MOOD_SYNONYMS[mood]) {
+    mood = MOOD_SYNONYMS[mood];
+  }
+
   // If mood is missing or not allowed, fall back to { reply } only
-  if (typeof parsed.mood !== "string" || !ALLOWED_MOODS.includes(parsed.mood.toLowerCase())) {
+  if (!ALLOWED_MOODS.includes(mood)) {
     return { reply };
   }
-  const mood = parsed.mood.toLowerCase();
 
   // If mix is missing or not an object, fall back to { reply } only
   if (!parsed.mix || typeof parsed.mix !== "object" || Array.isArray(parsed.mix)) {
     return { reply };
   }
 
-  // Validate and clamp mix values (0-100), drop unknown keys
+  // Validate and clamp mix values (0-100), map aliases, drop unknown keys
   const clampedMix = {};
   for (const [key, val] of Object.entries(parsed.mix)) {
-    const normalizedKey = key.toLowerCase();
+    let normalizedKey = key.toLowerCase().trim();
+    if (MIX_KEY_ALIASES[normalizedKey]) {
+      normalizedKey = MIX_KEY_ALIASES[normalizedKey];
+    }
     if (ALLOWED_MIX_KEYS.includes(normalizedKey)) {
       const num = Number(val);
       if (Number.isFinite(num)) {

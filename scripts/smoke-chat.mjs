@@ -207,6 +207,17 @@ const badMixJson = JSON.stringify({
 const badMixResult = validateAndCleanResponse(badMixJson);
 assert.deepEqual(badMixResult, { reply: "Here is your sound." }, "bad mix falls back to reply only");
 
+// 6e. Mood synonym normalization and mix alias mapping
+const synonymJson = JSON.stringify({
+  reply: "Playing waves.",
+  mood: "soothing",
+  mix: { ocean: 70, nature: 60 },
+  changes: "Playing ocean waves.",
+});
+const synonymResult = validateAndCleanResponse(synonymJson);
+assert.equal(synonymResult.mood, "calm", "soothing should normalize to calm");
+assert.equal(synonymResult.mix.waves, 70, "ocean should map to waves");
+
 // 7. GET /api/chat/history
 console.log("[smoke-chat] 7. Testing GET /api/chat/history...");
 testUserId = null;
@@ -258,5 +269,17 @@ const featuresRes = await request("/api/chat", {
 expect(200, featuresRes.status, "features response status");
 assert.ok(featuresRes.body.reply.includes("Soundscapes") || featuresRes.body.reply.includes("soundscapes"), "features reply should describe soundscapes");
 assert.deepEqual(featuresRes.body.mix, {}, "features query should not alter sounds");
+
+// 11. Exclusive sound query -> sets chosen channel/layer and mutes others
+console.log("[smoke-chat] 11. Testing exclusive sound query...");
+const oceanRes = await request("/api/chat", {
+  method: "POST",
+  body: JSON.stringify({ message: "ocean waves, nothing else" }),
+});
+expect(200, oceanRes.status, "ocean waves response status");
+assert.equal(oceanRes.body.mood, "calm");
+assert.ok(oceanRes.body.mix.waves >= 60, "waves should be active");
+assert.equal(oceanRes.body.mix.rain, 0, "rain must be 0 for exclusive request");
+assert.equal(oceanRes.body.mix.fire, 0, "fire must be 0 for exclusive request");
 
 console.log("[smoke-chat] All smoke tests passed successfully!");

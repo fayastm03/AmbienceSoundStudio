@@ -280,6 +280,37 @@ test("Assistant Commands - Saved mix fuzzy matching", () => {
   assert.equal(playCoffee?.actions[0]?.mix?.name, "Coffee Morning");
 });
 
+test("Assistant Commands - Exclusive and single sound play commands", () => {
+  const oceanExcl = parseCommand("ocean waves, nothing else", mockContext);
+  assert.equal(oceanExcl?.actions[0]?.type, "preset");
+  assert.equal(oceanExcl?.actions[0]?.levels?.nature?.channel, 0.65);
+  assert.equal(oceanExcl?.actions[0]?.levels?.nature?.layers?.waves, 0.70);
+  assert.equal(oceanExcl?.actions[0]?.levels?.nature?.layers?.wind, 0);
+  assert.equal(oceanExcl?.actions[0]?.levels?.rain?.channel, 0);
+  assert.equal(oceanExcl?.actions[0]?.levels?.coffee?.channel, 0);
+  assert.equal(oceanExcl?.actions[0]?.levels?.fire?.channel, 0);
+
+  const oceanExclComma = parseCommand("ocean waves ,nothing else", mockContext);
+  assert.equal(oceanExclComma?.actions[0]?.type, "preset");
+  assert.equal(oceanExclComma?.actions[0]?.levels?.nature?.layers?.waves, 0.70);
+  assert.equal(oceanExclComma?.actions[0]?.levels?.coffee?.channel, 0);
+
+  const justRain = parseCommand("just rain", mockContext);
+  assert.equal(justRain?.actions[0]?.type, "preset");
+  assert.equal(justRain?.actions[0]?.levels?.rain?.channel, 0.65);
+  assert.equal(justRain?.actions[0]?.levels?.coffee?.channel, 0);
+  assert.equal(justRain?.actions[0]?.levels?.fire?.channel, 0);
+  assert.equal(justRain?.actions[0]?.levels?.nature?.channel, 0);
+
+  const playWaves = parseCommand("play ocean waves", mockContext);
+  assert.ok(playWaves?.actions?.some((a) => a.type === "target_set" && a.target?.id === "waves"));
+  assert.ok(playWaves?.actions?.some((a) => a.type === "play"));
+
+  const playRain = parseCommand("play rain", mockContext);
+  assert.ok(playRain?.actions?.some((a) => a.type === "target_set" && a.target?.id === "rain"));
+  assert.ok(playRain?.actions?.some((a) => a.type === "play"));
+});
+
 test("Assistant Commands - App Features & Knowledge Base", () => {
   const appOverview = parseCommand("what is this app", mockContext);
   assert.ok(appOverview?.reply.includes("Ambient Sound Studio"));

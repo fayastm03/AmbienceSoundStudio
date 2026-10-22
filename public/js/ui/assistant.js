@@ -319,8 +319,9 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
     return mix;
   }
 
-  function mixToLevels(mix) {
+  function mixToLevels(mix, options = {}) {
     if (!mix || typeof mix !== "object") return null;
+    const { isExclusive = false } = options;
     const levels = {};
     soundscapes.forEach((config) => {
       let chVal = mix[config.id];
@@ -329,14 +330,18 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       }
       const channelVol = chVal !== undefined
         ? Math.max(0, Math.min(1, Number(chVal) / 100))
-        : (state.channels[config.id]?.volume ?? 0);
+        : isExclusive
+          ? 0
+          : (state.channels[config.id]?.volume ?? 0);
 
       const layers = {};
       config.layers.forEach((layer) => {
         if (mix[layer.id] !== undefined) {
           layers[layer.id] = Math.max(0, Math.min(1, Number(mix[layer.id]) / 100));
         } else {
-          layers[layer.id] = state.channels[config.id]?.layers?.[layer.id] ?? 0;
+          layers[layer.id] = isExclusive
+            ? 0
+            : (state.channels[config.id]?.layers?.[layer.id] ?? 0);
         }
       });
 
@@ -436,7 +441,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         let mixChip = null;
         // If AI returned mix adjustments, apply them smoothly over 2s to sliders and sound
         if (aiResult.mix && typeof aiResult.mix === "object" && Object.keys(aiResult.mix).length > 0) {
-          const targetLevels = mixToLevels(aiResult.mix);
+          const isExclusive = /(?:nothing\s+else|only|just|solo|exclusive)/i.test(clean);
+          const targetLevels = mixToLevels(aiResult.mix, { isExclusive });
           if (targetLevels) {
             await executor.executeActions([
               { type: "preset", name: aiResult.mood || "AI Mix", levels: targetLevels }

@@ -163,6 +163,85 @@ function generateMockChat(userText, currentMix = {}) {
     };
   }
 
+  // Exclusive / Solo sound requests
+  if (/(?:waves|ocean|surf|sea)/i.test(text)) {
+    if (/(?:nothing\s+else|only|just|solo)/i.test(text)) {
+      return {
+        reply: "Sure, playing just the soothing ocean waves for you.",
+        mood: "calm",
+        mix: {
+          nature: 65,
+          waves: 70,
+          wind: 0,
+          stream: 0,
+          birds: 0,
+          crickets: 0,
+          rain: 0,
+          cafe: 0,
+          fire: 0,
+        },
+        changes: "Playing only ocean waves, muted all other sounds.",
+      };
+    }
+    return {
+      reply: "Turned up the soothing ocean waves.",
+      mood: "calm",
+      mix: {
+        nature: 65,
+        waves: 70,
+      },
+      changes: "Increased ocean waves.",
+    };
+  }
+
+  if (/(?:rain|storm|thunder)/i.test(text) && /(?:nothing\s+else|only|just|solo)/i.test(text)) {
+    return {
+      reply: "Playing only the rain, with all other sounds muted.",
+      mood: "calm",
+      mix: {
+        rain: 70,
+        "heavy-rain": 50,
+        "light-rain": 30,
+        cafe: 0,
+        fire: 0,
+        nature: 0,
+      },
+      changes: "Playing only rain.",
+    };
+  }
+
+  if (/(?:fire|fireplace|crackle)/i.test(text) && /(?:nothing\s+else|only|just|solo)/i.test(text)) {
+    return {
+      reply: "Playing only the warm fireplace, with all other sounds muted.",
+      mood: "cozy",
+      mix: {
+        fire: 70,
+        crackle: 60,
+        firewood: 40,
+        rain: 0,
+        cafe: 0,
+        nature: 0,
+      },
+      changes: "Playing only fireplace.",
+    };
+  }
+
+  if (/(?:coffee|cafe|chatter)/i.test(text) && /(?:nothing\s+else|only|just|solo)/i.test(text)) {
+    return {
+      reply: "Playing only the coffee shop ambience, with all other sounds muted.",
+      mood: "focused",
+      mix: {
+        cafe: 65,
+        chatter: 50,
+        espresso: 30,
+        rain: 0,
+        fire: 0,
+        nature: 0,
+      },
+      changes: "Playing only coffee shop.",
+    };
+  }
+
   if (/(?:nature|forest|wind|stream|birds|waves|crickets)/i.test(text)) {
     return {
       reply: "Surrounded you with forest breeze, flowing water, and birdsong.",
