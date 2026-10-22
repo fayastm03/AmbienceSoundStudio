@@ -95,15 +95,21 @@ CRITICAL APP-ONLY SCOPE RULES:
    • Keyboard Shortcuts: Space (Play/Pause), M (Mute/Unmute), Esc (Close dialogs and drawers).
    When explaining app features, answer clearly and accurately, and set "mix": {} unless the user specifically asks to play or change sounds.
 4. For soundscape and mood requests:
-   - "reply": 1-2 warm, concise sentences acknowledging the mood and adjustments.
-   - "mood": exactly one of [calm, focused, sleepy, cozy, stressed, sad, happy, energetic].
-   - "mix": object with channels and layers set from 0 to 100.
-     Channels: rain, cafe, fire, nature.
-     Layers: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers, wind, stream, birds, crickets, waves.
+   - "reply": 1-2 warm, concise sentences acknowledging what was changed.
+   - "mood": exactly one of [calm, focused, sleepy, cozy, stressed, sad, happy, energetic] (default to "calm" or "cozy").
+   - "mix": A JSON OBJECT mapping sound keys to integer percentages 0 to 100.
+     CRITICAL: "mix" MUST be an object like {"coffee": 60, "chatter": 50}. NEVER output a string or an array!
+     Available Channel keys: rain, coffee, fire, nature.
+     Available Layer keys: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers, wind, stream, birds, crickets, waves.
+   - SEMANTIC MAPPINGS FOR NATURAL USER REQUESTS:
+     • "crowd", "conversation", "talking", "voices", "people", "chatter" -> {"coffee": 55, "chatter": 50}
+     • "coffee shop", "cafe", "cofee", "espresso" -> {"coffee": 60, "chatter": 40, "espresso": 25}
+     • "rain", "storm", "rainfall" -> {"rain": 60, "heavy-rain": 50}
+     • "nature", "natural", "forest", "breeze", "birds", "stream" -> {"nature": 60, "wind": 35, "stream": 30, "birds": 30}
+     • "fire", "fireplace", "warmth", "cozy", "crackle" -> {"fire": 60, "crackle": 50}
+   - ADDING / BLENDING REQUESTS (e.g. "add rain", "add cofee shop crowd to this", "need to add warm conversation", "natural vibe with rain"):
+     Keep the existing active sounds from (Current mix: ...) and ADD the new sound levels! Do NOT mute current active sounds unless user explicitly requested "only", "just", "solo", or "exclusive".
    - "changes": short description of adjustments made.
-   - EXCLUSIVE REQUESTS (e.g. "ocean waves, nothing else", "only rain", "just fire", "solo cafe", "play waves"):
-     Set the requested channel and layers to audible levels (50-70%), and explicitly set all other channels to 0 (rain: 0, cafe: 0, fire: 0, nature: 0 except the chosen channel)!
-   - For relative requests like "warmer" or "less crowded", adjust relative to the current mix.
 
 Output valid JSON only with keys: "reply", "mood", "mix", "changes".`;
 
@@ -158,36 +164,77 @@ export function buildHonestReply(diffs, originalReply = "") {
 }
 
 export function applyRelativeFallback(message, currentMix = {}) {
-  const text = (message || "").toLowerCase();
-  const resMix = {};
+  const text = (message || "").toLowerCase().replace(/[.,!?;]/g, " ");
+  const resMix = { ...currentMix };
   let applied = false;
 
-  if (/(?:more\s+natural|natural\s+vibe|more\s+nature|nature\s+vibe)/i.test(text)) {
-    const curNature = Number(currentMix.nature ?? 0);
-    const curWind = Number(currentMix.wind ?? 0);
-    const curStream = Number(currentMix.stream ?? 0);
-    const curBirds = Number(currentMix.birds ?? 0);
-    resMix.nature = Math.min(100, Math.max(50, curNature + 25));
-    resMix.wind = Math.min(100, curWind + 25);
-    resMix.stream = Math.min(100, curStream + 20);
-    resMix.birds = Math.min(100, curBirds + 20);
+  // Rain requests (e.g. "add rain", "natural vibe with rain", "rain")
+  if (/(?:rain|rainy|storm|thunder|downpour|rainfall)/i.test(text)) {
+    const curRain = Number(currentMix.rain ?? 0);
+    resMix.rain = Math.max(55, curRain + 25);
+    resMix["heavy-rain"] = Math.max(40, Number(currentMix["heavy-rain"] ?? 0) + 20);
+    if (/thunder|storm/i.test(text)) {
+      resMix.thunder = 35;
+    }
     applied = true;
-  } else if (/(?:less\s+crowded|quieter\s+cafe|less\s+noise|quiet\s+cafe)/i.test(text)) {
+  }
+
+  // Coffee / Cafe / Crowd / Conversation requests (including typos like cofee, coffe)
+  if (/(?:coffe|cofee|cafe|caffee|espresso|latte|chatter|crowd|conversation|people|talking|voices|bustle)/i.test(text)) {
+    const curCoffee = Number(currentMix.coffee ?? currentMix.cafe ?? 0);
+    resMix.coffee = Math.max(55, curCoffee + 25);
+    resMix.cafe = resMix.coffee;
+    if (/(?:crowd|conversation|talking|people|voices|chatter|bustle)/i.test(text)) {
+      resMix.chatter = Math.max(50, Number(currentMix.chatter ?? 0) + 25);
+    }
+    if (/(?:espresso|machine)/i.test(text)) {
+      resMix.espresso = Math.max(30, Number(currentMix.espresso ?? 0) + 20);
+    }
+    applied = true;
+  }
+
+  // Nature / breeze / stream / birds / waves / crickets
+  if (/(?:nature|natural|forest|trees|woodland|breeze|wind|stream|river|water|creek|bird|chirp|wave|ocean|sea|cricket|cicada)/i.test(text)) {
+    const curNature = Number(currentMix.nature ?? 0);
+    resMix.nature = Math.max(55, curNature + 25);
+    if (/(?:wind|breeze)/i.test(text) || !/(?:stream|bird|cricket|wave)/i.test(text)) {
+      resMix.wind = Math.max(35, Number(currentMix.wind ?? 0) + 20);
+    }
+    if (/(?:stream|water|river|creek)/i.test(text) || !/(?:wind|bird|cricket|wave)/i.test(text)) {
+      resMix.stream = Math.max(30, Number(currentMix.stream ?? 0) + 20);
+    }
+    if (/(?:bird|birds|chirp)/i.test(text) || !/(?:wind|stream|cricket|wave)/i.test(text)) {
+      resMix.birds = Math.max(30, Number(currentMix.birds ?? 0) + 20);
+    }
+    if (/(?:cricket|cicada)/i.test(text)) {
+      resMix.crickets = Math.max(25, Number(currentMix.crickets ?? 0) + 20);
+    }
+    if (/(?:wave|ocean|sea|surf)/i.test(text)) {
+      resMix.waves = Math.max(50, Number(currentMix.waves ?? 0) + 25);
+    }
+    applied = true;
+  }
+
+  // Fire / warmth / crackle
+  if (/(?:fire|fireplace|warm|warmth|cozy|cozier|crackle|embers|wood)/i.test(text)) {
+    const curFire = Number(currentMix.fire ?? 0);
+    resMix.fire = Math.max(55, curFire + 25);
+    resMix.crackle = Math.max(45, Number(currentMix.crackle ?? 0) + 20);
+    applied = true;
+  }
+
+  // Less crowded / quieter cafe
+  if (/(?:less\s+crowded|quieter\s+cafe|less\s+noise|quiet\s+cafe)/i.test(text)) {
     const curChatter = Number(currentMix.chatter ?? 50);
     const curCoffee = Number(currentMix.coffee ?? currentMix.cafe ?? 40);
     resMix.chatter = Math.max(0, curChatter - 30);
     resMix.coffee = Math.max(0, curCoffee - 20);
     resMix.cafe = resMix.coffee;
     applied = true;
-  } else if (/(?:warmer|cozier|more\s+fire|warmer\s+vibe)/i.test(text)) {
-    const curFire = Number(currentMix.fire ?? 30);
-    const curCrackle = Number(currentMix.crackle ?? 20);
-    const curEmbers = Number(currentMix.embers ?? 20);
-    resMix.fire = Math.min(100, curFire + 25);
-    resMix.crackle = Math.min(100, curCrackle + 25);
-    resMix.embers = Math.min(100, curEmbers + 20);
-    applied = true;
-  } else if (/(?:forest\s+at\s+night|take\s+me\s+to\s+a\s+forest\s+at\s+night)/i.test(text)) {
+  }
+
+  // Night forest preset
+  if (/(?:forest\s+at\s+night|take\s+me\s+to\s+a\s+forest\s+at\s+night)/i.test(text)) {
     resMix.nature = 65;
     resMix.crickets = 45;
     resMix.wind = 35;
@@ -197,7 +244,10 @@ export function applyRelativeFallback(message, currentMix = {}) {
     resMix.cafe = 0;
     resMix.fire = 0;
     applied = true;
-  } else if (/(?:turn\s+off\s+(?:the\s+)?rain|mute\s+(?:the\s+)?rain|stop\s+(?:the\s+)?rain)/i.test(text)) {
+  }
+
+  // Turn off rain
+  if (/(?:turn\s+off\s+(?:the\s+)?rain|mute\s+(?:the\s+)?rain|stop\s+(?:the\s+)?rain)/i.test(text)) {
     resMix.rain = 0;
     resMix["heavy-rain"] = 0;
     resMix["light-rain"] = 0;
@@ -205,6 +255,14 @@ export function applyRelativeFallback(message, currentMix = {}) {
     resMix.roof = 0;
     resMix.thunder = 0;
     applied = true;
+  }
+
+  // Exclusive / Solo sound requests
+  if (/(?:nothing\s+else|only|just|solo|exclusive)/i.test(text)) {
+    if (!/(?:rain|storm)/i.test(text)) resMix.rain = 0;
+    if (!/(?:coffe|cofee|cafe|crowd|conversation)/i.test(text)) { resMix.coffee = 0; resMix.cafe = 0; }
+    if (!/(?:fire|warm|crackle)/i.test(text)) resMix.fire = 0;
+    if (!/(?:nature|natural|wind|stream|bird|cricket|wave)/i.test(text)) resMix.nature = 0;
   }
 
   return applied ? resMix : null;
@@ -226,7 +284,7 @@ export function validateAndCleanResponse(rawText, currentMix = {}) {
   }
   const reply = parsed.reply.trim();
 
-  // Normalize mood through synonyms (e.g. "soothing" -> "calm", "relaxing" -> "calm")
+  // Normalize mood through synonyms (e.g. "soothing" -> "calm", "relaxing" -> "calm", "warm" -> "cozy")
   let mood = typeof parsed.mood === "string" ? parsed.mood.toLowerCase().trim() : "";
   if (MOOD_SYNONYMS[mood]) {
     mood = MOOD_SYNONYMS[mood];
@@ -347,23 +405,56 @@ router.post("/", async (request, response) => {
     changes: "",
   };
 
+  // If model output string/array in mix, recover polymorphic keys
+  if (!responseData.mix || Object.keys(responseData.mix).length === 0) {
+    try {
+      const parsed = JSON.parse(result.text);
+      if (typeof parsed?.mix === "string" || Array.isArray(parsed?.mix)) {
+        const rawItems = Array.isArray(parsed.mix) ? parsed.mix : [parsed.mix];
+        const extracted = {};
+        for (const item of rawItems) {
+          if (typeof item === "string") {
+            const k = normalizeMixKey(item);
+            if (k) extracted[k] = 60;
+            else if (/coffee|cafe|crowd|conversation|chatter/i.test(item)) { extracted.coffee = 60; extracted.chatter = 50; }
+            else if (/rain/i.test(item)) { extracted.rain = 60; }
+            else if (/fire/i.test(item)) { extracted.fire = 60; }
+            else if (/nature|wind|stream|bird|cricket|wave/i.test(item)) { extracted.nature = 60; }
+          }
+        }
+        if (Object.keys(extracted).length > 0) {
+          responseData.mix = extracted;
+          if (!responseData.mood) responseData.mood = "calm";
+        }
+      }
+    } catch {}
+  }
+
   // Compute real diff between current mix and proposed new mix
   let diffs = computeMixDiff(currentMix, responseData.mix || {});
-
-  // If diff is empty, check for deterministic relative fallback
-  if (diffs.length === 0) {
-    const relativeFallback = applyRelativeFallback(message, currentMix);
-    if (relativeFallback) {
-      responseData.mix = relativeFallback;
-      diffs = computeMixDiff(currentMix, responseData.mix);
-      if (!responseData.mood) responseData.mood = "calm";
-    }
-  }
 
   // Check if user requested sound changes or if model claimed sound changes
   const isOffTopicOrInfo =
     (typeof responseData.changes === "string" && /no sound changes|provided app|explained|listed/i.test(responseData.changes)) ||
     /(?:specifically the assistant for Ambient Sound Studio|Ambient Sound Studio is an ambient soundscape mixer)/i.test(responseData.reply || "");
+
+  // If diff is empty, check for deterministic relative fallback
+  const relativeFallback = applyRelativeFallback(message, currentMix);
+  if (diffs.length === 0) {
+    if (relativeFallback) {
+      responseData.mix = relativeFallback;
+      diffs = computeMixDiff(currentMix, responseData.mix);
+      if (!responseData.mood) responseData.mood = "calm";
+    }
+  } else if (relativeFallback && !isOffTopicOrInfo) {
+    // If user asked for compound sounds (e.g. "natural vibe with rain"), ensure all mentioned sounds are blended
+    for (const [k, v] of Object.entries(relativeFallback)) {
+      if (responseData.mix[k] === undefined) {
+        responseData.mix[k] = v;
+      }
+    }
+    diffs = computeMixDiff(currentMix, responseData.mix);
+  }
 
   const claimsChange =
     !isOffTopicOrInfo &&

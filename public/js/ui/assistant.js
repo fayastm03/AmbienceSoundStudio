@@ -503,12 +503,18 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
           }
         } else {
           // Backup plan: If AI produced no mix (or if auth required, offline, or busy), lightly match the chat
-          const backupPlan = fallbackMatchMix(clean);
+          const backupPlan = fallbackMatchMix(clean, { state });
           if (backupPlan?.actions?.length) {
             await executor.executeActions(backupPlan.actions, { fromChat: true });
             updateUndoButton();
             mixChip = getActiveChannelsSummary();
-            if (aiResult.authRequired || !aiResult.reply || aiResult.reply.includes("Something went wrong") || aiResult.reply.includes("Could not reach")) {
+            if (
+              aiResult.authRequired ||
+              !aiResult.reply ||
+              aiResult.reply.includes("Something went wrong") ||
+              aiResult.reply.includes("Could not reach") ||
+              aiResult.reply.includes("I couldn't change anything")
+            ) {
               finalReply = backupPlan.reply;
             }
           }

@@ -36,24 +36,62 @@ export const CHANNEL_BY_LAYER = Object.fromEntries(
 export const CHANNEL_ALIASES = {
   cafe: "coffee",
   coffeeshop: "coffee",
+  "coffee-shop": "coffee",
+  coffee_shop: "coffee",
+  cofee: "coffee",
+  coffe: "coffee",
+  caffee: "coffee",
+  caffè: "coffee",
   fireplace: "fire",
   campfire: "fire",
+  fireside: "fire",
+  warmth: "fire",
+  rainstorm: "rain",
+  rainfall: "rain",
+  natural: "nature",
+  forest: "nature",
+  woods: "nature",
+  outdoors: "nature",
 };
 
 export const LAYER_ALIASES = {
   ocean: "waves",
   "ocean-waves": "waves",
+  ocean_waves: "waves",
   wave: "waves",
+  sea: "waves",
+  surf: "waves",
   bird: "birds",
   birdsong: "birds",
+  chirp: "birds",
+  chirping: "birds",
   creek: "stream",
   river: "stream",
   water: "stream",
+  brook: "stream",
   cicadas: "crickets",
   cicada: "crickets",
   cricket: "crickets",
   breeze: "wind",
   "gentle-breeze": "wind",
+  gentle_breeze: "wind",
+  crowd: "chatter",
+  conversation: "chatter",
+  conversations: "chatter",
+  talking: "chatter",
+  voices: "chatter",
+  people: "chatter",
+  espresso_machine: "espresso",
+  coffee_machine: "espresso",
+  crackling: "crackle",
+  wood: "firewood",
+  burning_wood: "firewood",
+  coals: "embers",
+  thunderstorm: "thunder",
+  rain_on_window: "window",
+  rain_on_roof: "roof",
+  heavy_rain: "heavy-rain",
+  light_rain: "light-rain",
 };
 
 export const ALL_VALID_MIX_KEYS = [
@@ -64,9 +102,21 @@ export const ALL_VALID_MIX_KEYS = [
 
 export function normalizeMixKey(rawKey) {
   if (!rawKey || typeof rawKey !== "string") return null;
-  const key = rawKey.toLowerCase().trim();
+  const key = rawKey.toLowerCase().trim().replace(/[\s_-]+/g, "-");
+  const underscoreKey = rawKey.toLowerCase().trim().replace(/[\s-]+/g, "_");
+  const plainKey = rawKey.toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  if (LAYER_ALIASES[rawKey.toLowerCase().trim()]) return LAYER_ALIASES[rawKey.toLowerCase().trim()];
   if (LAYER_ALIASES[key]) return LAYER_ALIASES[key];
+  if (LAYER_ALIASES[underscoreKey]) return LAYER_ALIASES[underscoreKey];
+  if (LAYER_ALIASES[plainKey]) return LAYER_ALIASES[plainKey];
+
+  if (CHANNEL_ALIASES[rawKey.toLowerCase().trim()]) return CHANNEL_ALIASES[rawKey.toLowerCase().trim()];
   if (CHANNEL_ALIASES[key]) return CHANNEL_ALIASES[key];
+  if (CHANNEL_ALIASES[underscoreKey]) return CHANNEL_ALIASES[underscoreKey];
+  if (CHANNEL_ALIASES[plainKey]) return CHANNEL_ALIASES[plainKey];
+
   if (CHANNELS.includes(key) || LAYERS.includes(key)) return key;
+  if (CHANNELS.includes(rawKey.toLowerCase().trim()) || LAYERS.includes(rawKey.toLowerCase().trim())) return rawKey.toLowerCase().trim();
   return null;
 }

@@ -46,8 +46,9 @@ export function normalize(text) {
 export function stripFiller(text) {
   let s = normalize(text);
   const fillers = [
-    "please", "can you", "could you", "would you", "i want", "give me",
-    "a bit", "a little", "some", "just", "the", "now", "hey", "ambient"
+    "please", "can you", "could you", "would you", "i want", "i need", "give me",
+    "a bit of", "bit of", "a bit", "a little", "a liitle", "some",
+    "just", "the", "now", "hey", "ambient"
   ];
   let changed = true;
   while (changed) {
@@ -67,19 +68,19 @@ export function stripFiller(text) {
 }
 
 // Synonym dictionary mapping aliases to target definitions
-const TARGET_MAP = [
+export const TARGET_MAP = [
   // Channels
-  { id: "rain", type: "channel", channelId: "rain", label: "Rain", keywords: ["rain", "rainy", "raining", "rainstorm", "shower", "showers", "water"] },
-  { id: "coffee", type: "channel", channelId: "coffee", label: "Coffee Shop", keywords: ["coffee", "cafe", "café", "coffeeshop", "coffee shop", "shop", "coffees"] },
-  { id: "fire", type: "channel", channelId: "fire", label: "Fireplace", keywords: ["fire", "fireplace", "campfire", "bonfire", "hearth", "fires"] },
-  { id: "nature", type: "channel", channelId: "nature", label: "Nature", keywords: ["nature", "forest", "woods", "outdoors", "outdoor", "green", "trees"] },
+  { id: "rain", type: "channel", channelId: "rain", label: "Rain", keywords: ["rain", "rainy", "raining", "rainstorm", "shower", "showers", "water", "rain sound"] },
+  { id: "coffee", type: "channel", channelId: "coffee", label: "Coffee Shop", keywords: ["coffee", "cofee", "coffe", "cafe", "café", "caffee", "coffeeshop", "coffee shop", "shop", "coffees", "coffee shop sound", "coffee sound", "cafe sound", "cafe ambience"] },
+  { id: "fire", type: "channel", channelId: "fire", label: "Fireplace", keywords: ["fire", "fireplace", "campfire", "bonfire", "hearth", "fires", "fire sound", "fireplace sound"] },
+  { id: "nature", type: "channel", channelId: "nature", label: "Nature", keywords: ["nature", "natural", "natural vibe", "nature vibe", "forest", "woods", "outdoors", "outdoor", "green", "greenery", "trees", "nature sound"] },
   // Layers
   { id: "heavy-rain", type: "layer", channelId: "rain", layerId: "heavy-rain", label: "Heavy rain", keywords: ["heavy rain", "heavyrain", "downpour", "heavy", "hard rain"] },
   { id: "light-rain", type: "layer", channelId: "rain", layerId: "light-rain", label: "Light rain", keywords: ["light rain", "lightrain", "drizzle", "sprinkle", "gentle rain"] },
   { id: "window", type: "layer", channelId: "rain", layerId: "window", label: "Window rain", keywords: ["window", "windows", "windowpane", "glass"] },
   { id: "roof", type: "layer", channelId: "rain", layerId: "roof", label: "Roof rain", keywords: ["roof", "roofs", "tin roof", "ceiling"] },
   { id: "thunder", type: "layer", channelId: "rain", layerId: "thunder", label: "Thunder", keywords: ["thunder", "thunders", "thunderstorm", "lightning", "rumble"] },
-  { id: "chatter", type: "layer", channelId: "coffee", layerId: "chatter", label: "Chatter", keywords: ["chatter", "chatting", "talking", "voices", "people", "crowd", "murmur", "background chatter"] },
+  { id: "chatter", type: "layer", channelId: "coffee", layerId: "chatter", label: "Chatter", keywords: ["chatter", "chatting", "talking", "voices", "people", "crowd", "murmur", "background chatter", "conversation", "conversations", "warm conversation", "coffee shop crowd", "cafe crowd", "people talking"] },
   { id: "espresso", type: "layer", channelId: "coffee", layerId: "espresso", label: "Espresso", keywords: ["espresso", "espressos", "coffee machine", "steamer", "cups", "clinking"] },
   { id: "crackle", type: "layer", channelId: "fire", layerId: "crackle", label: "Crackle", keywords: ["crackle", "crackling", "snaps", "pops", "crackles", "fire crackle"] },
   { id: "firewood", type: "layer", channelId: "fire", layerId: "firewood", label: "Firewood", keywords: ["firewood", "wood", "logs", "timber"] },
@@ -338,7 +339,7 @@ export function parseCompoundMix(rawText, ctx = {}) {
 }
 
 // Backup plan: Lightly matches sound and mood keywords when AI is unavailable or produces no mix
-export function fallbackMatchMix(rawText) {
+export function fallbackMatchMix(rawText, ctx = {}) {
   if (!rawText || typeof rawText !== "string") return null;
   const text = rawText.toLowerCase();
 
@@ -348,15 +349,15 @@ export function fallbackMatchMix(rawText) {
   }
 
   // First, see if compound parser can handle it
-  const compound = parseCompoundMix(rawText);
+  const compound = parseCompoundMix(rawText, ctx);
   if (compound) return compound;
 
-  // Next, lightly detect sound mentions
+  // Next, lightly detect sound mentions (typo-tolerant)
   const mentions = {
-    rain: /(?:rain|storm|drizzle|downpour|thunder)/i.test(text),
-    coffee: /(?:coffee|cafe|chatter|espresso|latte|barista)/i.test(text),
-    fire: /(?:fire|fireplace|crackle|ember|wood|hearth|campfire)/i.test(text),
-    nature: /(?:nature|forest|wind|stream|river|creek|bird|cricket|wave|ocean|sea|surf)/i.test(text),
+    rain: /(?:rain|storm|drizzle|downpour|thunder|rainfall)/i.test(text),
+    coffee: /(?:coffee|cofee|coffe|cafe|caffee|chatter|crowd|conversation|people|talking|voices|espresso|latte|barista)/i.test(text),
+    fire: /(?:fire|fireplace|crackle|ember|wood|hearth|campfire|warm|warmth)/i.test(text),
+    nature: /(?:nature|natural|forest|woods|wind|stream|river|creek|bird|cricket|wave|ocean|sea|surf)/i.test(text),
   };
 
   const layerMentions = {
@@ -364,11 +365,12 @@ export function fallbackMatchMix(rawText) {
     heavyRain: /(?:heavy\s*rain|downpour|storm)/i.test(text),
     crackle: /(?:crackle|crackling)/i.test(text),
     espresso: /(?:espresso|coffee\s*machine)/i.test(text),
-    chatter: /(?:chatter|crowd|voices)/i.test(text),
+    chatter: /(?:chatter|crowd|conversation|talking|voices|people)/i.test(text),
     waves: /(?:wave|ocean|sea|surf)/i.test(text),
     birds: /(?:bird|chirp)/i.test(text),
     stream: /(?:stream|creek|river|water)/i.test(text),
     wind: /(?:wind|breeze)/i.test(text),
+    crickets: /(?:cricket|cicada)/i.test(text),
   };
 
   const hasAnySound = Object.values(mentions).some(Boolean);
@@ -383,45 +385,50 @@ export function fallbackMatchMix(rawText) {
     return null;
   }
 
+  const isAdd = /(?:add|also|with|to\s+this|and\s+also|plus|need\s+to\s+add)/i.test(text);
   const levels = {};
   soundscapes.forEach((cfg) => {
+    const curCh = isAdd && ctx?.state?.channels?.[cfg.id] ? ctx.state.channels[cfg.id].volume : 0;
     const layers = {};
-    cfg.layers.forEach((l) => { layers[l.id] = 0; });
-    levels[cfg.id] = { channel: 0, layers };
+    cfg.layers.forEach((l) => {
+      layers[l.id] = isAdd && ctx?.state?.channels?.[cfg.id]?.layers?.[l.id] ? ctx.state.channels[cfg.id].layers[l.id] : 0;
+    });
+    levels[cfg.id] = { channel: curCh, layers };
   });
 
   const activeNames = [];
 
   if (hasAnySound) {
     if (mentions.rain) {
-      levels.rain.channel = 0.55;
-      levels.rain.layers["light-rain"] = 0.35;
-      if (layerMentions.heavyRain) levels.rain.layers["heavy-rain"] = 0.50;
-      if (layerMentions.thunder) levels.rain.layers["thunder"] = 0.35;
+      levels.rain.channel = Math.max(0.55, levels.rain.channel);
+      levels.rain.layers["light-rain"] = Math.max(0.35, levels.rain.layers["light-rain"]);
+      if (layerMentions.heavyRain) levels.rain.layers["heavy-rain"] = Math.max(0.50, levels.rain.layers["heavy-rain"]);
+      if (layerMentions.thunder) levels.rain.layers["thunder"] = Math.max(0.35, levels.rain.layers["thunder"]);
       activeNames.push(layerMentions.heavyRain ? "Heavy rain" : "Rain");
     }
     if (mentions.coffee) {
-      levels.coffee.channel = 0.50;
-      levels.coffee.layers.chatter = layerMentions.chatter ? 0.50 : 0.30;
-      levels.coffee.layers.espresso = layerMentions.espresso ? 0.35 : 0.15;
-      activeNames.push("Coffee Shop");
+      levels.coffee.channel = Math.max(0.50, levels.coffee.channel);
+      levels.coffee.layers.chatter = Math.max(layerMentions.chatter ? 0.50 : 0.30, levels.coffee.layers.chatter);
+      levels.coffee.layers.espresso = Math.max(layerMentions.espresso ? 0.35 : 0.15, levels.coffee.layers.espresso);
+      activeNames.push(layerMentions.chatter ? "Coffee Shop crowd" : "Coffee Shop");
     }
     if (mentions.fire) {
-      levels.fire.channel = 0.55;
-      levels.fire.layers.crackle = layerMentions.crackle ? 0.55 : 0.40;
-      levels.fire.layers.firewood = 0.30;
-      levels.fire.layers.embers = 0.25;
+      levels.fire.channel = Math.max(0.55, levels.fire.channel);
+      levels.fire.layers.crackle = Math.max(layerMentions.crackle ? 0.55 : 0.40, levels.fire.layers.crackle);
+      levels.fire.layers.firewood = Math.max(0.30, levels.fire.layers.firewood);
+      levels.fire.layers.embers = Math.max(0.25, levels.fire.layers.embers);
       activeNames.push("Fireplace");
     }
     if (mentions.nature) {
-      levels.nature.channel = 0.60;
-      if (layerMentions.waves) { levels.nature.layers.waves = 0.65; activeNames.push("Ocean waves"); }
-      if (layerMentions.birds) { levels.nature.layers.birds = 0.40; activeNames.push("Birds"); }
-      if (layerMentions.stream) { levels.nature.layers.stream = 0.45; activeNames.push("Stream"); }
-      if (layerMentions.wind) { levels.nature.layers.wind = 0.40; activeNames.push("Wind"); }
-      if (!layerMentions.waves && !layerMentions.birds && !layerMentions.stream && !layerMentions.wind) {
-        levels.nature.layers.wind = 0.35;
-        levels.nature.layers.birds = 0.30;
+      levels.nature.channel = Math.max(0.60, levels.nature.channel);
+      if (layerMentions.waves) { levels.nature.layers.waves = Math.max(0.65, levels.nature.layers.waves); activeNames.push("Ocean waves"); }
+      if (layerMentions.birds) { levels.nature.layers.birds = Math.max(0.40, levels.nature.layers.birds); activeNames.push("Birds"); }
+      if (layerMentions.stream) { levels.nature.layers.stream = Math.max(0.45, levels.nature.layers.stream); activeNames.push("Stream"); }
+      if (layerMentions.wind) { levels.nature.layers.wind = Math.max(0.40, levels.nature.layers.wind); activeNames.push("Wind"); }
+      if (layerMentions.crickets) { levels.nature.layers.crickets = Math.max(0.35, levels.nature.layers.crickets); activeNames.push("Crickets"); }
+      if (!layerMentions.waves && !layerMentions.birds && !layerMentions.stream && !layerMentions.wind && !layerMentions.crickets) {
+        levels.nature.layers.wind = Math.max(0.35, levels.nature.layers.wind);
+        levels.nature.layers.birds = Math.max(0.30, levels.nature.layers.birds);
         activeNames.push("Nature");
       }
     }
@@ -448,17 +455,17 @@ export function fallbackMatchMix(rawText) {
     } else if (isCalm) {
       levels.nature.channel = 0.55;
       levels.nature.layers.waves = 0.60;
-      levels.nature.layers.wind = 0.30;
-      activeNames.push("Calm ocean waves and breeze");
+      activeNames.push("Ocean waves and gentle calm");
     }
   }
 
+  const actionVerb = isAdd ? "Added" : "Set up";
   return {
     actions: [
-      { type: "preset", name: "Custom Ambience", levels },
+      { type: "preset", name: activeNames.join(", "), levels },
       { type: "play" }
     ],
-    reply: `I adjusted your soundscape to feature ${activeNames.join(", ")}.`
+    reply: `${actionVerb} ${activeNames.join(", ")} for your mix.`
   };
 }
 
@@ -862,6 +869,32 @@ export function parseCommand(rawText, ctx = {}) {
           reply: `Playing ${target.label}.`
         };
       }
+    }
+  }
+
+  // 9d. Add / blend specific sound: "add rain", "add cofee shop crowd to this", "need to add warm conversation", "add liitle natural vibe"
+  const addTargetMatch = stripped.match(/^(?:add|bring in|mix in|need to add|put|give me|blend in)\s+(?:the\s+|a\s+|some\s+|a\s+little\s+|a\s+liitle\s+|a\s+bit\s+of\s+|a\s+bit\s+)?(.+?)(?:\s+(?:to\s+this|to\s+the\s+mix|in\s+this))?$/i);
+  if (addTargetMatch) {
+    const targetQuery = addTargetMatch[1];
+    const target = matchTarget(targetQuery);
+    if (target) {
+      if (target.type === "channel") {
+        return {
+          actions: [
+            { type: "target_set", target, value: 0.55 },
+            { type: "play" }
+          ],
+          reply: `Added ${target.label} to your mix.`
+        };
+      }
+      return {
+        actions: [
+          { type: "target_set", target: { type: "channel", channelId: target.channelId, label: target.channelId }, value: 0.55 },
+          { type: "target_set", target, value: 0.50 },
+          { type: "play" }
+        ],
+        reply: `Added ${target.label} to your mix.`
+      };
     }
   }
 
