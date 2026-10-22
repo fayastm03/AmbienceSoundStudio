@@ -1,29 +1,20 @@
 // Manages the accessible channel detail side panel and bottom sheet.
+import { registerOverlay, openOverlay, closeOverlay } from "./overlay.js";
+
 export function createDetailPanel(configs, state, onLayerChange, onChannelChange, onReset, getStatus) {
   const panel = document.querySelector("#detailPanel");
   const list = document.querySelector("#layerList");
   const closeButton = document.querySelector("#closePanel");
-  const backdrop = panel.querySelector("[data-close-panel]");
   const resetButton = document.querySelector("#resetLayers");
   const channelInput = document.querySelector("#detailChannelVolume");
   const channelOutput = document.querySelector("#detailChannelValue");
 
   let activeId;
-  let returnFocus;
 
-  function focusable() {
-    return [...panel.querySelectorAll("button, input, [tabindex]:not([tabindex='-1'])")].filter(
-      (element) => !element.disabled && !element.closest("[hidden]")
-    );
-  }
-
-  function open(id) {
-    // Notify other panels to close so panels never overlap
-    window.dispatchEvent(new CustomEvent("panel:open", { detail: { name: "detail" } }));
-
+  function renderChannel(id) {
     activeId = id;
-    returnFocus = document.querySelector(`[data-channel="${id}"]`);
     const config = configs.find((item) => item.id === id);
+    if (!config) return;
 
     document.querySelector("#detailTitle").textContent = config.name;
     document.querySelector("#detailDescription").textContent = config.description;
@@ -62,57 +53,36 @@ export function createDetailPanel(configs, state, onLayerChange, onChannelChange
         document.querySelector(`#layerValue-${layer.id}`).textContent = `${val}%`;
       });
     });
+  }
 
-    panel.setAttribute("aria-hidden", "false");
-    document.body.classList.add("modal-open");
-    closeButton.focus();
+  registerOverlay("detailPanel", {
+    element: panel,
+    contentElement: panel.querySelector(".panel-content"),
+    usesScrim: true,
+    open: () => {
+      panel.setAttribute("aria-hidden", "false");
+    },
+    close: () => {
+      panel.setAttribute("aria-hidden", "true");
+    },
+    trapFocus: true,
+  });
+
+  function open(id) {
+    renderChannel(id);
+    const trigger = document.querySelector(`[data-channel="${id}"]`);
+    openOverlay("detailPanel", {
+      trigger,
+      focusTarget: closeButton,
+    });
   }
 
   function close() {
-    panel.setAttribute("aria-hidden", "true");
-    // Check if any other overlay is still open before removing modal-open
-    const authModal = document.querySelector("#authModal");
-    const mixesPanel = document.querySelector("#mixesPanel");
-    const isOtherOpen = (authModal && !authModal.hidden) || (mixesPanel && mixesPanel.getAttribute("aria-hidden") === "false");
-    if (!isOtherOpen) {
-      document.body.classList.remove("modal-open");
-    }
-    returnFocus?.focus();
+    closeOverlay("detailPanel");
   }
 
   closeButton.addEventListener("click", close);
-  backdrop.addEventListener("click", close);
   resetButton.addEventListener("click", () => onReset(activeId));
-
-  // Focus trap and Escape handling
-  panel.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") return close();
-    if (event.key !== "Tab") return;
-
-    const elements = focusable();
-    if (!elements.length) return;
-    const first = elements[0];
-    const last = elements[elements.length - 1];
-
-    if (event.shiftKey) {
-      if (document.activeElement === first || !elements.includes(document.activeElement)) {
-        event.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last || !elements.includes(document.activeElement)) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-  });
-
-  // Close when another panel opens
-  window.addEventListener("panel:open", (event) => {
-    if (event.detail?.name !== "detail" && panel.getAttribute("aria-hidden") === "false") {
-      panel.setAttribute("aria-hidden", "true");
-    }
-  });
 
   return { open, close };
 }

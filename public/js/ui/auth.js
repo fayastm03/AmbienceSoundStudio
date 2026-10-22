@@ -1,9 +1,10 @@
 import { apiRequest } from "../api/client.js";
+import { registerOverlay, openOverlay, closeOverlay } from "./overlay.js";
 
 let openModalFn = () => {};
 
-export function openAuthModal() {
-  openModalFn();
+export function openAuthModal(tab = "login", message = "") {
+  openModalFn(tab, message);
 }
 
 export function formatUserName(user) {
@@ -18,14 +19,11 @@ export function formatUserName(user) {
 
 export function bindAuth() {
   const modal = document.querySelector("#authModal");
-  const openButton = document.querySelector("#authOpen");
   const closeButton = document.querySelector("#authClose");
   const errorMessage = document.querySelector("#authError");
   const unavailableNotice = document.querySelector("#authUnavailable");
-  const status = document.querySelector("#authStatus");
   const tabs = [...document.querySelectorAll(".auth-tabs [role=tab]")];
   const panels = [...document.querySelectorAll("[data-auth-form]")];
-  let lastFocused;
   let accountsAvailable = true;
 
   function clearErrors() {
@@ -63,46 +61,51 @@ export function bindAuth() {
     clearErrors();
   }
 
-  function focusable() {
-    return [...modal.querySelectorAll("button, input, [tabindex]:not([tabindex='-1'])")].filter(
-      (element) => !element.disabled && !element.closest("[hidden]")
-    );
-  }
+  registerOverlay("authModal", {
+    element: modal,
+    contentElement: modal.querySelector(".auth-dialog"),
+    usesScrim: true,
+    open: () => {
+      modal.hidden = false;
+    },
+    close: () => {
+      modal.hidden = true;
+      clearErrors();
+    },
+    trapFocus: true,
+  });
 
   function close() {
-    modal.hidden = true;
-    document.body.classList.remove("modal-open");
-    clearErrors();
-    lastFocused?.focus();
+    closeOverlay("authModal");
   }
 
-  function open() {
-    lastFocused = document.activeElement;
-    modal.hidden = false;
-    document.body.classList.add("modal-open");
-    setTab("login");
-    const firstInput = document.querySelector("#loginEmail");
-    if (firstInput && !firstInput.disabled) firstInput.focus();
-    else closeButton.focus();
+  function open(tab = "login", message = "") {
+    setTab(tab);
+    const intro = modal.querySelector(".auth-intro");
+    intro.textContent = message || "Sign in to keep your studio ready across visits. You can continue as a guest at any time.";
+    const firstInput = document.querySelector(tab === "register" ? "#registerName" : "#loginEmail");
+
+    openOverlay("authModal", {
+      trigger: document.activeElement,
+      focusTarget: firstInput && !firstInput.disabled ? firstInput : closeButton,
+    });
   }
 
   openModalFn = open;
-  window.addEventListener("auth:open", open);
+  window.addEventListener("auth:open", (event) => open(event.detail?.tab || "login", event.detail?.message || ""));
+  window.addEventListener("auth:signout-request", signOut);
 
   function renderUser(user) {
-    status.textContent = user ? formatUserName(user) : "";
-    openButton.textContent = user ? "Sign out" : "Sign in";
-    openButton.onclick = user
-      ? async () => {
-          try {
-            await apiRequest("/api/auth/logout", { method: "POST", body: "{}" });
-            renderUser(null);
-          } catch {
-            setGeneralError("Unable to sign out right now.");
-          }
-        }
-      : open;
     window.dispatchEvent(new CustomEvent("auth:change", { detail: { user } }));
+  }
+
+  async function signOut() {
+    try {
+      await apiRequest("/api/auth/logout", { method: "POST", body: "{}" });
+      renderUser(null);
+    } catch {
+      setGeneralError("Unable to sign out right now.");
+    }
   }
 
   tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.id === "signInTab" ? "login" : "register")));
@@ -115,38 +118,14 @@ export function bindAuth() {
     setTab(next.id === "signInTab" ? "login" : "register");
   }));
 
-  openButton.addEventListener("click", open);
   closeButton.addEventListener("click", close);
-  modal.querySelector("[data-auth-close]").addEventListener("click", close);
-
-  // Focus trap
-  modal.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") return close();
-    if (event.key !== "Tab") return;
-
-    const elements = focusable();
-    if (!elements.length) return;
-    const first = elements[0];
-    const last = elements[elements.length - 1];
-
-    if (event.shiftKey) {
-      if (document.activeElement === first || !elements.includes(document.activeElement)) {
-        event.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last || !elements.includes(document.activeElement)) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-  });
 
   // Password visibility toggles
   modal.querySelectorAll("[data-toggle-password]").forEach((button) => button.addEventListener("click", () => {
     const input = document.querySelector(`#${button.dataset.togglePassword}`);
     input.type = input.type === "password" ? "text" : "password";
     button.textContent = input.type === "password" ? "Show" : "Hide";
+    button.setAttribute("aria-label", input.type === "password" ? "Show password" : "Hide password");
   }));
 
   // Clear errors when typing
@@ -184,61 +163,73 @@ export function bindAuth() {
     }
 
     const password = data.password || "";
-    if (password.length < 10 || password.length > 128) {
-      const inputId = isLogin ? "loginPassword" : "registerPassword";
-      const errorId = isLogin ? "loginPasswordError" : "registerPasswordError";
-      const msg = "Password must be between 10 and 128 characters";
-      setFieldError(inputId, errorId, msg);
-      setGeneralError(msg);
-      document.querySelector(`#${inputId}`).focus();
-      return;
+    if (isLogin) {
+      if (!password) {
+        setFieldError("loginPassword", "loginPasswordError", "Password is required");
+        setGeneralError("Password is required");
+        document.querySelector("#loginPassword").focus();
+        return;
+      }
+    } else {
+      if (password.length < 10) {
+        setFieldError("registerPassword", "registerPasswordError", "Password must be at least 10 characters");
+        setGeneralError("Password must be at least 10 characters");
+        document.querySelector("#registerPassword").focus();
+        return;
+      }
+      if (password.length > 128) {
+        setFieldError("registerPassword", "registerPasswordError", "Password must be at most 128 characters");
+        setGeneralError("Password must be at most 128 characters");
+        document.querySelector("#registerPassword").focus();
+        return;
+      }
     }
 
     submit.disabled = true;
     submit.textContent = isLogin ? "Signing in…" : "Creating account…";
+    submit.classList.add("btn-loading");
 
     try {
-      const result = await apiRequest(`/api/auth/${formType}`, {
+      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
+      const body = isLogin
+        ? { email, password }
+        : { email, password, displayName: data.displayName?.trim() || undefined };
+
+      const result = await apiRequest(endpoint, {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       });
+
       renderUser(result.user);
-      close();
       form.reset();
+      close();
     } catch (error) {
-      if (error.status === 503) {
-        setGeneralError("Accounts are temporarily unavailable. You can continue as a guest.");
-      } else if (error.status === 429) {
-        setGeneralError("Too many attempts. Please try again later.");
-      } else if (error.data?.fieldErrors) {
-        // Map server validation field errors to inputs
-        for (const [field, msg] of Object.entries(error.data.fieldErrors)) {
-          if (field === "email") {
-            setFieldError(isLogin ? "loginEmail" : "registerEmail", isLogin ? "loginEmailError" : "registerEmailError", msg);
-          } else if (field === "password") {
-            setFieldError(isLogin ? "loginPassword" : "registerPassword", isLogin ? "loginPasswordError" : "registerPasswordError", msg);
-          } else if (field === "displayName") {
-            setFieldError("registerName", "registerNameError", msg);
-          }
-        }
-        setGeneralError(error.data.error || "Please check your details.");
-      } else {
-        setGeneralError(error.message || "An error occurred. Please try again.");
+      if (error.field) {
+        const inputId = `${formType}${error.field.charAt(0).toUpperCase()}${error.field.slice(1)}`;
+        const errorId = `${inputId}Error`;
+        setFieldError(inputId, errorId, error.message);
       }
+      setGeneralError(error.message || "An unexpected error occurred. Please try again.");
     } finally {
       submit.disabled = false;
       submit.textContent = originalText;
+      submit.classList.remove("btn-loading");
     }
   }));
 
-  // Page load check
+  // Initial session check
   apiRequest("/api/auth/me")
-    .then(({ user, accountsAvailable: available }) => {
-      accountsAvailable = available !== false;
+    .then((data) => {
+      accountsAvailable = data.accountsAvailable !== false;
       if (unavailableNotice) unavailableNotice.hidden = accountsAvailable;
-      renderUser(user);
+      renderUser(data.user);
     })
     .catch(() => {
+      accountsAvailable = false;
+      if (unavailableNotice) unavailableNotice.hidden = false;
       renderUser(null);
+    })
+    .finally(() => {
+      window.dispatchEvent(new CustomEvent("auth:availability", { detail: { available: accountsAvailable } }));
     });
 }

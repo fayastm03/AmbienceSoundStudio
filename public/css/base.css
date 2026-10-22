@@ -1,9 +1,119 @@
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-button, input { font: inherit; }
-button:focus-visible, input:focus-visible, .channel-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-h1, h2, p { margin-top: 0; }
-input[type="range"] { width: 100%; height: 5px; appearance: none; border-radius: 5px; background: linear-gradient(to right, var(--accent-fill) var(--value, 50%), var(--track) var(--value, 50%)); cursor: pointer; }
-input[type="range"]::-webkit-slider-thumb { width: 15px; height: 15px; appearance: none; border: 3px solid var(--surface-strong); border-radius: 50%; background: var(--accent); box-shadow: 0 2px 7px var(--shadow); }
-input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 3px solid var(--surface-strong); border-radius: 50%; background: var(--accent); }
-output { color: var(--accent); font: 600 11px ui-monospace, monospace; }
+:root {
+  /* Spacing Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radii Scale */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Elevation Shadows (matching calm blue-grey palette) */
+  --shadow-sm: 0 1px 3px var(--shadow), 0 1px 2px var(--shadow);
+  --shadow-md: 0 4px 14px var(--shadow), 0 2px 4px var(--shadow);
+  --shadow-lg: 0 12px 32px var(--shadow), 0 4px 8px var(--shadow);
+
+  /* Typography Scale */
+  --text-xs: clamp(0.6875rem, 0.65rem + 0.2vw, 0.75rem);   /* 11-12px */
+  --text-sm: clamp(0.8125rem, 0.78rem + 0.2vw, 0.875rem);   /* 13-14px */
+  --text-base: clamp(0.9375rem, 0.9rem + 0.2vw, 1rem);      /* 15-16px */
+  --text-lg: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);     /* 18-20px */
+  --text-xl: clamp(1.375rem, 1.25rem + 0.5vw, 1.625rem);    /* 22-26px */
+  --text-hero: clamp(2rem, 1.6rem + 2vw, 2.5rem);           /* 32-40px */
+
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Overlay Stacking Scale */
+  --z-topbar: 100;
+  --z-dock: 110;
+  --z-menu: 200;
+  --z-scrim: 300;
+  --z-panel: 310;
+  --z-modal: 400;
+  --z-toast: 500;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+[inert] {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+.channel-card:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+h1, h2, h3, p {
+  margin-top: 0;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  border-radius: var(--radius-full);
+  background: linear-gradient(to right, var(--accent-fill) var(--value, 50%), var(--track) var(--value, 50%));
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  appearance: none;
+  border: 3px solid var(--surface-strong);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 7px var(--shadow);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--surface-strong);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+output {
+  color: var(--accent);
+  font: 600 var(--text-xs) ui-monospace, monospace;
+}

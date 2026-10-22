@@ -54,6 +54,59 @@ Keep `raw/` out of version control. Edit
 layers. The audio engine and its guest-mode behavior do not depend on
 authentication.
 
+### Account menu and shortcuts
+
+The top-right account menu contains sign-in, saved mixes, theme selection, and
+keyboard help without interrupting guest listening. Use **Space** to play or
+pause, **M** to mute or unmute, and **Escape** to close the current menu or
+panel. Shortcuts are paused while typing or while an overlay is open.
+
+## UI Architecture & Design System
+
+The front end is built with vanilla modern HTML5, CSS custom properties, and ES modules, following a strict calm blue-grey aesthetic with WCAG AA accessibility compliance.
+
+### Design Tokens (`public/css/base.css`)
+
+- **Spacing Scale**: `--space-1` (4px), `--space-2` (8px), `--space-3` (12px), `--space-4` (16px), `--space-6` (24px), `--space-8` (32px), `--space-12` (48px).
+- **Radii Scale**: `--radius-sm` (6px), `--radius-md` (10px), `--radius-lg` (16px), `--radius-full` (9999px).
+- **Elevation Shadows**: `--shadow-sm`, `--shadow-md`, `--shadow-lg` tuned with `var(--shadow)` to match the calm blue-grey atmosphere.
+- **Typography Scale**: Fluid, responsive type sizes: `--text-xs` (11-12px), `--text-sm` (13-14px), `--text-base` (15-16px), `--text-lg` (18-20px), `--text-xl` (22-26px), `--text-hero` (32-40px).
+- **Line Heights**: `--leading-none` (1), `--leading-tight` (1.2), `--leading-snug` (1.35), `--leading-normal` (1.5), `--leading-relaxed` (1.625).
+
+### Overlay Stacking Scale (`--z-*`)
+
+Overlay stacking contexts are managed centrally using tokens rather than ad-hoc z-indices:
+
+```css
+--z-topbar: 100;   /* Sticky header */
+--z-dock:   110;   /* Sticky bottom playback dock */
+--z-menu:   200;   /* Account popover dropdown */
+--z-scrim:  300;   /* Backdrops for panels and modals */
+--z-panel:  310;   /* Slide-in drawers (Saved mixes, Channel details) */
+--z-modal:  400;   /* Dialog modals (Sign in / Register, Shortcuts) */
+--z-toast:  500;   /* Floating toast notification stack */
+```
+
+### Overlay Manager (`public/js/ui/overlay.js`)
+
+All modal dialogs, slide-in panels, and dropdown menus are managed through the centralized Overlay Manager:
+- **Mutual Exclusivity**: At most one overlay is active at any time; opening a new overlay cleanly closes the previous one.
+- **Scroll Lock & Inert Background**: Sets `document.body.classList.add("modal-open")` and marks background landmarks (`<main class="studio">`, `<header class="topbar">`) as `inert`.
+- **Focus Management**: Traps `Tab` / `Shift+Tab` cycles inside the active overlay and automatically restores focus to the triggering element when dismissed.
+- **Keyboard & Scrim Dismissal**: Handles `Escape` key and backdrop clicks globally.
+
+### Unified Button System (`public/css/components.css`)
+
+Buttons adhere to a consistent hierarchy, state indicators, and touch targets:
+- Base `.btn`: 38px height, rounded corners, minimum 44x44px touch target (via pseudo-elements), 2px focus ring (`outline: 2px solid var(--accent); outline-offset: 2px`), and subtle pressed scaling.
+- `.btn-primary`: Solid high-contrast text color fill for prominent affirmative actions (Sign in, Save, Create mix).
+- `.btn-secondary`: Subtle surface background with border for standard actions (Rename, Cancel, Drift).
+- `.btn-accent`: Theme accent fill for mix playback applications (Apply mix).
+- `.btn-ghost`: Transparent background for subtle icon/text controls.
+- `.btn-danger`: Red `#b23b35` fill with white text for destructive operations (Delete mix).
+- `.btn-sm`: Compact actions for card action rows.
+- `.btn-loading`: Accessible animated spinner with text hidden while async operations execute.
+
 ## Saved mixes
 
 Signed-in users can manage up to 50 custom mixes from the "My mixes" panel in the

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --watch server/index.js",
     "start": "node server/index.js",
+    "check": "node --check public/js/main.js && node --check public/js/ui/overlay.js && node --check public/js/ui/account-menu.js && node --check public/js/ui/auth.js && node --check public/js/ui/controls.js && node --check public/js/ui/detail-panel.js && node --check public/js/ui/mood-mixer.js && node --check public/js/ui/saved-mixes.js && node --check public/js/ui/toast.js && node --check server/index.js && node tools/check-contrast.mjs && node scripts/overlay-check.mjs",
     "smoke:auth": "node scripts/smoke-auth.mjs",
     "smoke:mixes": "node scripts/smoke-mixes.mjs"
   },

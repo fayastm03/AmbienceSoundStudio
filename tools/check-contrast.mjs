@@ -71,7 +71,32 @@ for (const [name, token] of Object.entries(themes)) {
   const deleteBtn = ratio([255, 255, 255], [178, 59, 53]);
   if (deleteBtn < 4.5) { console.error(`${name} delete button: ${deleteBtn.toFixed(2)}:1`); failed = true; }
 
+  // 5. Account and feedback surfaces
+  const accountText = ratio(token.text, token.surface);
+  if (accountText < 4.5) { console.error(`${name} account menu text: ${accountText.toFixed(2)}:1`); failed = true; }
+  const toastText = ratio(token.surface, token.text);
+  if (toastText < 4.5) { console.error(`${name} toast text: ${toastText.toFixed(2)}:1`); failed = true; }
+
   console.log(`${name}: text pairs, slider, and component tokens checked`);
 }
+
+// 6. Avatar palette checks (white initials text >= 4.5:1, and light background >= 4.5:1)
+const AVATAR_PALETTE = [
+  [62, 99, 120],  // #3e6378
+  [72, 107, 114], // #486b72
+  [83, 101, 115], // #536573
+  [74, 95, 120],  // #4a5f78
+  [60, 105, 117], // #3c6975
+  [70, 104, 107], // #46686b
+];
+
+for (let i = 0; i < AVATAR_PALETTE.length; i++) {
+  const avatar = AVATAR_PALETTE[i];
+  const whiteText = ratio([255, 255, 255], avatar);
+  if (whiteText < 4.5) { console.error(`Avatar color ${i} with white text: ${whiteText.toFixed(2)}:1`); failed = true; }
+  const bgLight = ratio(avatar, themes.Light.bg);
+  if (bgLight < 4.5) { console.error(`Avatar color ${i} with Light bg: ${bgLight.toFixed(2)}:1`); failed = true; }
+}
+console.log("Avatar palette: white text and light background contrast checked");
 
 if (failed) process.exit(1);
