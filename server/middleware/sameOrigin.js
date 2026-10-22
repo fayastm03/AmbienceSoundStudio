@@ -9,10 +9,10 @@ export function sameOrigin(request, response, next) {
 
   try {
     const sourceUrl = new URL(source);
-    const hostHeader = request.get("host");
+    const hostHeader = request.get("x-forwarded-host") || request.get("host");
 
     // Exact host match is always valid
-    if (sourceUrl.host === hostHeader) return next();
+    if (sourceUrl.host === hostHeader || sourceUrl.host === request.get("host")) return next();
 
     // In development, allow switching between localhost and 127.0.0.1 on the configured port
     if (env.nodeEnv !== "production") {

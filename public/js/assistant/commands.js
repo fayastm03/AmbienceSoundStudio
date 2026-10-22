@@ -461,6 +461,20 @@ export function parseCommand(rawText, ctx = {}) {
     }
   }
 
+  // 15. "Play my usual" / "my usual"
+  if (/^(play my usual|my usual|play usual|usual mix|usual)$/i.test(stripped)) {
+    if (ctx.usualLevels) {
+      return {
+        actions: [{ type: "preset", name: "My usual", levels: ctx.usualLevels }],
+        reply: "Playing your usual mix."
+      };
+    }
+    return {
+      actions: [],
+      reply: "You don't have a usual mix yet. Listen to a few sounds and I'll learn what you love!"
+    };
+  }
+
   // Fallback: If not recognized locally, return null (needs AI)
   return null;
 }

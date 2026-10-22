@@ -38,67 +38,97 @@ export function isCircuitOpen() {
   return 0;
 }
 
-function generateMockChat(userText) {
+function generateMockChat(userText, currentMix = {}) {
   const text = (userText || "").toLowerCase();
 
   // Crisis protocol check
   if (/(?:suicide|self-harm|kill\s+myself|end\s+it\s+all|hurt\s+myself|abuse|depression\s+crisis)/i.test(text)) {
     return {
       reply: "Please know you are not alone. Reach out to the Suicide & Crisis Lifeline by calling or texting 988, or text HOME to 741741.",
-      actions: [],
-      tags: [],
+      mood: "calm",
+      mix: {},
+      changes: "Safety message provided.",
     };
   }
 
   if (/(?:warmer|warm|cozier|cozy)/i.test(text)) {
+    const curFire = Number(currentMix.fire ?? 30);
+    const curCrackle = Number(currentMix.crackle ?? 20);
     return {
       reply: "Turned up the fire crackle and embers for a warmer atmosphere.",
-      actions: [
-        { type: "adjust", channel: "fire", layer: "crackle", delta: 0.25 },
-        { type: "adjust", channel: "fire", layer: "embers", delta: 0.15 },
-      ],
-      tags: ["cozy", "relax"],
+      mood: "cozy",
+      mix: {
+        fire: Math.min(100, curFire + 30),
+        crackle: Math.min(100, curCrackle + 30),
+        embers: 40,
+      },
+      changes: "Increased fire and crackle volume for warmth.",
     };
   }
 
   if (/(?:less\s+crowded|crowded|quiet|quieter\s+cafe)/i.test(text)) {
+    const curChatter = Number(currentMix.chatter ?? 50);
     return {
       reply: "Lowered background chatter for a quieter, more peaceful space.",
-      actions: [
-        { type: "adjust", channel: "coffee", layer: "chatter", delta: -0.3 },
-      ],
-      tags: ["calm", "reading"],
+      mood: "calm",
+      mix: {
+        cafe: 30,
+        coffee: 30,
+        chatter: Math.max(0, curChatter - 30),
+      },
+      changes: "Reduced cafe chatter volume.",
     };
   }
 
   if (/(?:storm|thunder|rain)/i.test(text)) {
     return {
       reply: "Deepened the rain layers and added gentle thunder.",
-      actions: [
-        { type: "set", channel: "rain", layer: "heavy-rain", value: 0.6 },
-        { type: "set", channel: "rain", layer: "thunder", value: 0.25 },
-      ],
-      tags: ["storm", "focus"],
+      mood: "focused",
+      mix: {
+        rain: 70,
+        "heavy-rain": 60,
+        thunder: 30,
+      },
+      changes: "Increased rain intensity and added thunder.",
     };
   }
 
   if (/(?:study|work|focus)/i.test(text)) {
     return {
       reply: "Set up a focused soundscape for deep work.",
-      actions: [
-        { type: "set", channel: "coffee", layer: "espresso", value: 0.25 },
-        { type: "set", channel: "rain", layer: "window", value: 0.3 },
-      ],
-      tags: ["focus", "work"],
+      mood: "focused",
+      mix: {
+        cafe: 35,
+        coffee: 35,
+        espresso: 25,
+        window: 30,
+      },
+      changes: "Blended light cafe ambience with window rain.",
+    };
+  }
+
+  if (/(?:sleep|sleepy|night|bed)/i.test(text)) {
+    return {
+      reply: "Softened the ambience for a restful sleep.",
+      mood: "sleepy",
+      mix: {
+        rain: 25,
+        "light-rain": 25,
+        embers: 20,
+      },
+      changes: "Reduced overall volume to soft rain and embers.",
     };
   }
 
   return {
     reply: "Adjusted the ambience to match your space.",
-    actions: [
-      { type: "set", channel: "rain", layer: "window", value: 0.35 },
-    ],
-    tags: ["calm"],
+    mood: "calm",
+    mix: {
+      rain: 40,
+      window: 30,
+      fire: 20,
+    },
+    changes: "Created a balanced, calming mix.",
   };
 }
 
@@ -111,6 +141,7 @@ export async function callGroq({
   model = env.groqChatModel,
   mock,
   jsonMode = false,
+  currentMix,
 }) {
   const isMock =
     mock ??
@@ -128,7 +159,8 @@ export async function callGroq({
 
   if (isMock) {
     const lastUserMsg = user || messages?.filter((m) => m.role === "user").pop()?.content || "";
-    const mockData = generateMockChat(lastUserMsg);
+    const mockData = generateMockChat(lastUserMsg, currentMix);
+    const rawText = JSON.stringify(mockData);
     const replyText = typeof mockData === "object" ? mockData.reply : String(mockData);
     const usage = {
       prompt_tokens: Math.min(120, 20 + Math.floor((lastUserMsg.length || 0) / 4)),
@@ -137,7 +169,7 @@ export async function callGroq({
     };
     usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
     return {
-      text: replyText,
+      text: rawText,
       reply: replyText,
       usage,
       durationMs: 15,
@@ -161,6 +193,12 @@ export async function callGroq({
     temperature: 0.3,
     max_tokens: maxTokens,
   };
+
+  // Reasoning models (e.g., openai/gpt-oss) spend hidden reasoning tokens;
+  // configure lowest reasoning effort as required by the docs to avoid token exhaustion.
+  if (/gpt-oss|reasoning|o1|o3/i.test(model)) {
+    requestBody.reasoning_effort = "low";
+  }
 
   if (jsonMode) {
     requestBody.response_format = { type: "json_object" };

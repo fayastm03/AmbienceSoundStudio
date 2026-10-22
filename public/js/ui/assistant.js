@@ -4,10 +4,10 @@
 import { registerOverlay, openOverlay, closeOverlay, isOverlayOpen } from "./overlay.js";
 import { parseCommand } from "../assistant/commands.js";
 import { createAssistantExecutor } from "../assistant/executor.js";
-import { askAssistant } from "../assistant/ai-client.js";
+import { askAssistant, getChatHistory } from "../assistant/ai-client.js";
 import { isCrisisText, CRISIS_MESSAGE, HELPLINE_URL, HELPLINE_LABEL } from "../config/safety.js";
 
-const MAX_MESSAGES = 20;
+const MAX_MESSAGES = 30;
 
 export function bindAssistant({ soundscapes, state, engine, render, getSavedMixes, onNowPlayingChange }) {
   const button = document.querySelector("#assistantButton");
@@ -28,6 +28,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   let currentMoodTags = [];
   let aiRemaining = null;
   let mockMode = false;
+  let currentUserProfile = null;
+  let currentUsualLevels = null;
 
   const messages = [
     {
@@ -121,8 +123,24 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
     announce(CRISIS_MESSAGE);
   }
 
-  function appendMessage(role, text, examples = [], thinking = false) {
-    messages.push({ role, text, examples, thinking });
+  function appendMessage(role, text, options = {}) {
+    let opts = {};
+    if (typeof options === "boolean") {
+      opts = { thinking: options };
+    } else if (Array.isArray(options)) {
+      opts = { examples: options };
+    } else if (options && typeof options === "object") {
+      opts = options;
+    }
+    messages.push({
+      role,
+      text,
+      thinking: Boolean(opts.thinking),
+      safety: Boolean(opts.safety),
+      mixChip: opts.mixChip || null,
+      hasUndo: Boolean(opts.hasUndo),
+      undoDone: false,
+    });
     while (messages.length > MAX_MESSAGES) {
       messages.shift();
     }
@@ -156,11 +174,135 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       }
 
       bubble.appendChild(textEl);
+
+      if (msg.mixChip) {
+        const actionRow = document.createElement("div");
+        actionRow.className = "assistant-mix-row";
+
+        const chip = document.createElement("span");
+        chip.className = "assistant-mix-chip";
+        chip.textContent = msg.mixChip;
+        actionRow.appendChild(chip);
+
+        if (msg.hasUndo) {
+          const undoBtn = document.createElement("button");
+          undoBtn.type = "button";
+          undoBtn.className = "assistant-undo-chip";
+          undoBtn.textContent = msg.undoDone ? "Undone" : "Undo";
+          undoBtn.disabled = Boolean(msg.undoDone);
+          undoBtn.setAttribute("aria-label", "Undo mix changes");
+          undoBtn.addEventListener("click", async () => {
+            msg.undoDone = true;
+            undoBtn.disabled = true;
+            undoBtn.textContent = "Undone";
+            await executor.undo();
+            updateUndoButton();
+            announce("Undid mix adjustments.");
+          });
+          actionRow.appendChild(undoBtn);
+        }
+
+        bubble.appendChild(actionRow);
+      }
+
       messagesList.appendChild(bubble);
     });
 
     messagesList.scrollTop = messagesList.scrollHeight;
     messagesList.lastElementChild?.scrollIntoView({ block: "end", inline: "nearest" });
+  }
+
+  function formatMixChip(mix) {
+    if (!mix || typeof mix !== "object") return "";
+    const parts = [];
+    const channelMap = [
+      { key: "rain", label: "Rain" },
+      { key: "cafe", alt: "coffee", label: "Cafe" },
+      { key: "fire", label: "Fire" },
+    ];
+    for (const ch of channelMap) {
+      const val = mix[ch.key] !== undefined ? mix[ch.key] : (ch.alt ? mix[ch.alt] : undefined);
+      if (typeof val === "number" && val > 0) {
+        parts.push(`${ch.label} ${Math.round(val)}`);
+      }
+    }
+    if (parts.length > 0) {
+      return parts.join(", ");
+    }
+    for (const [k, v] of Object.entries(mix)) {
+      if (typeof v === "number" && v > 0) {
+        const cleanKey = k.charAt(0).toUpperCase() + k.slice(1).replace("-", " ");
+        parts.push(`${cleanKey} ${Math.round(v)}`);
+        if (parts.length >= 2) break;
+      }
+    }
+    return parts.join(", ");
+  }
+
+  function getActiveChannelsSummary() {
+    const parts = [];
+    const channelMap = [
+      { key: "rain", label: "Rain" },
+      { key: "coffee", label: "Cafe" },
+      { key: "fire", label: "Fire" },
+    ];
+    for (const ch of channelMap) {
+      const chState = state?.channels?.[ch.key];
+      const vol = chState ? Math.round(chState.volume * 100) : 0;
+      if (vol > 0) {
+        parts.push(`${ch.label} ${vol}`);
+      }
+    }
+    return parts.join(", ");
+  }
+
+  function getCurrentMixSnapshot() {
+    if (!state?.channels) return {};
+    const mix = {};
+    soundscapes.forEach((config) => {
+      const chState = state.channels[config.id];
+      if (chState) {
+        mix[config.id] = Math.round((chState.volume ?? 0) * 100);
+        if (config.id === "coffee") {
+          mix.cafe = mix[config.id];
+        }
+        if (chState.layers) {
+          config.layers.forEach((layer) => {
+            mix[layer.id] = Math.round((chState.layers[layer.id] ?? 0) * 100);
+          });
+        }
+      }
+    });
+    return mix;
+  }
+
+  function mixToLevels(mix) {
+    if (!mix || typeof mix !== "object") return null;
+    const levels = {};
+    soundscapes.forEach((config) => {
+      let chVal = mix[config.id];
+      if (chVal === undefined && config.id === "coffee") {
+        chVal = mix.cafe;
+      }
+      const channelVol = chVal !== undefined
+        ? Math.max(0, Math.min(1, Number(chVal) / 100))
+        : (state.channels[config.id]?.volume ?? 0);
+
+      const layers = {};
+      config.layers.forEach((layer) => {
+        if (mix[layer.id] !== undefined) {
+          layers[layer.id] = Math.max(0, Math.min(1, Number(mix[layer.id]) / 100));
+        } else {
+          layers[layer.id] = state.channels[config.id]?.layers?.[layer.id] ?? 0;
+        }
+      });
+
+      levels[config.id] = {
+        channel: channelVol,
+        layers,
+      };
+    });
+    return levels;
   }
 
   async function handleUserMessage(userText) {
@@ -175,10 +317,38 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       return;
     }
 
+    // 2. Local-first parser: fast, deterministic, zero-token cost
+    const savedMixes = typeof getSavedMixes === "function" ? getSavedMixes() : [];
+    const localCmd = parseCommand(clean, {
+      state,
+      soundscapes,
+      savedMixes,
+      usualLevels: currentUsualLevels,
+    });
+    if (localCmd) {
+      appendMessage("user", clean);
+      if (input) input.value = "";
+      if (localCmd.actions?.length) {
+        const { masterClipped } = await executor.executeActions(localCmd.actions, { fromChat: true });
+        updateUndoButton();
+        if (masterClipped && !localCmd.reply.includes("comfortable level")) {
+          localCmd.reply += " I kept the volume at a comfortable level.";
+        }
+        const hasMixChange = localCmd.actions.some((a) =>
+          ["preset", "surprise", "apply_mix", "target_delta", "target_set", "set", "adjust"].includes(a.type)
+        );
+        const mixChip = hasMixChange ? getActiveChannelsSummary() : null;
+        appendMessage("assistant", localCmd.reply, { mixChip, hasUndo: Boolean(mixChip) });
+      } else {
+        appendMessage("assistant", localCmd.reply);
+      }
+      return;
+    }
+
     appendMessage("user", clean);
     if (input) input.value = "";
 
-    // 2. Typing indicator
+    // 3. Fallback to AI when local parser returns null
     const thinkingMsg = { role: "assistant", text: "Thinking…", thinking: true };
     messages.push(thinkingMsg);
     renderMessages();
@@ -193,7 +363,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         .filter((m) => !m.thinking && (m.role === "user" || m.role === "assistant"))
         .slice(-6);
 
-      const aiResult = await askAssistant(clean, recentMessages);
+      const currentMix = getCurrentMixSnapshot();
+      const aiResult = await askAssistant(clean, recentMessages, currentMix);
 
       // Remove typing indicator
       const thinkingIdx = messages.indexOf(thinkingMsg);
@@ -204,7 +375,19 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       if (aiResult.safety) {
         appendCrisisBubble();
       } else {
-        appendMessage("assistant", aiResult.reply);
+        let mixChip = null;
+        // If AI returned mix adjustments, apply them smoothly over 2s to sliders and sound
+        if (aiResult.mix && typeof aiResult.mix === "object" && Object.keys(aiResult.mix).length > 0) {
+          const targetLevels = mixToLevels(aiResult.mix);
+          if (targetLevels) {
+            await executor.executeActions([
+              { type: "preset", name: aiResult.mood || "AI Mix", levels: targetLevels }
+            ], { fromChat: true });
+            updateUndoButton();
+            mixChip = formatMixChip(aiResult.mix);
+          }
+        }
+        appendMessage("assistant", aiResult.reply, { mixChip, hasUndo: Boolean(mixChip) });
       }
     } finally {
       if (input) {
@@ -212,6 +395,43 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         input.focus();
       }
       if (sendButton) sendButton.disabled = false;
+    }
+  }
+
+  let historyLoaded = false;
+  async function loadHistory() {
+    if (historyLoaded) return;
+    try {
+      const { messages: hist, profile } = await getChatHistory();
+      if (profile) {
+        currentUserProfile = profile;
+        if (profile.usualMix) {
+          currentUsualLevels = mixToLevels(profile.usualMix);
+        }
+      }
+
+      if (Array.isArray(hist) && hist.length > 0) {
+        messages.length = 0;
+        hist.forEach((m) => {
+          messages.push({
+            role: m.role === "user" ? "user" : "assistant",
+            text: m.text,
+          });
+        });
+        while (messages.length > MAX_MESSAGES) {
+          messages.shift();
+        }
+      } else if (profile?.greeting) {
+        // Personalized first-message greeting using mood history
+        messages[0] = {
+          role: "assistant",
+          text: profile.greeting,
+        };
+      }
+      renderMessages();
+      historyLoaded = true;
+    } catch {
+      historyLoaded = true;
     }
   }
 
@@ -223,9 +443,10 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       usesScrim: false,
       trapFocus: false,
       dismissOnOutside: false,
-      open: () => {
+      open: async () => {
         panel.hidden = false;
         button?.setAttribute("aria-expanded", "true");
+        await loadHistory();
         renderMessages();
         updateUndoButton();
         announce("Sound assistant opened.");

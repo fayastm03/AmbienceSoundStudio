@@ -4,7 +4,7 @@
 import { saveState, setMaster, setMuted, resetLayers } from "../state/store.js";
 
 const MAX_UNDO = 10;
-const ANIMATION_DURATION_MS = 1500;
+const ANIMATION_DURATION_MS = 2000;
 
 function clamp(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min));
@@ -256,28 +256,52 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
         case "target_delta": {
           saveSnapshot();
           const { target, delta } = action;
-          if (target.type === "channel") {
-            const ch = state.channels[target.channelId];
-            if (ch) {
-              const newVol = clamp(ch.volume + delta);
-              ch.volume = newVol;
-              if (engine.context) engine.setChannel(target.channelId, newVol);
-            }
-          } else if (target.type === "layer") {
-            const ch = state.channels[target.channelId];
-            if (ch && ch.layers?.[target.layerId] !== undefined) {
-              const newVol = clamp(ch.layers[target.layerId] + delta);
-              ch.layers[target.layerId] = newVol;
-              if (engine.context) engine.setLayer(target.channelId, target.layerId, newVol);
-              // If layer increased and channel volume is very low, gently raise channel volume too
-              if (delta > 0 && ch.volume < 0.25) {
-                ch.volume = 0.35;
-                if (engine.context) engine.setChannel(target.channelId, 0.35);
+          if (fromChat) {
+            const levels = Object.fromEntries(
+              soundscapes.map((cfg) => [
+                cfg.id,
+                {
+                  channel: state.channels[cfg.id].volume,
+                  layers: { ...state.channels[cfg.id].layers },
+                },
+              ])
+            );
+            if (target.type === "channel") {
+              const ch = levels[target.channelId];
+              if (ch) ch.channel = clamp(ch.channel + delta);
+            } else if (target.type === "layer") {
+              const ch = levels[target.channelId];
+              if (ch && ch.layers?.[target.layerId] !== undefined) {
+                ch.layers[target.layerId] = clamp(ch.layers[target.layerId] + delta);
+                if (delta > 0 && ch.channel < 0.25) {
+                  ch.channel = 0.35;
+                }
               }
             }
+            await animateLevels(levels);
+          } else {
+            if (target.type === "channel") {
+              const ch = state.channels[target.channelId];
+              if (ch) {
+                const newVol = clamp(ch.volume + delta);
+                ch.volume = newVol;
+                if (engine.context) engine.setChannel(target.channelId, newVol);
+              }
+            } else if (target.type === "layer") {
+              const ch = state.channels[target.channelId];
+              if (ch && ch.layers?.[target.layerId] !== undefined) {
+                const newVol = clamp(ch.layers[target.layerId] + delta);
+                ch.layers[target.layerId] = newVol;
+                if (engine.context) engine.setLayer(target.channelId, target.layerId, newVol);
+                if (delta > 0 && ch.volume < 0.25) {
+                  ch.volume = 0.35;
+                  if (engine.context) engine.setChannel(target.channelId, 0.35);
+                }
+              }
+            }
+            render(engine.active);
+            saveState();
           }
-          render(engine.active);
-          saveState();
           break;
         }
 
@@ -285,25 +309,50 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
           saveSnapshot();
           const { target, value } = action;
           const val = clamp(value);
-          if (target.type === "channel") {
-            const ch = state.channels[target.channelId];
-            if (ch) {
-              ch.volume = val;
-              if (engine.context) engine.setChannel(target.channelId, val);
-            }
-          } else if (target.type === "layer") {
-            const ch = state.channels[target.channelId];
-            if (ch && ch.layers?.[target.layerId] !== undefined) {
-              ch.layers[target.layerId] = val;
-              if (engine.context) engine.setLayer(target.channelId, target.layerId, val);
-              if (val > 0 && ch.volume < 0.25) {
-                ch.volume = 0.35;
-                if (engine.context) engine.setChannel(target.channelId, 0.35);
+          if (fromChat) {
+            const levels = Object.fromEntries(
+              soundscapes.map((cfg) => [
+                cfg.id,
+                {
+                  channel: state.channels[cfg.id].volume,
+                  layers: { ...state.channels[cfg.id].layers },
+                },
+              ])
+            );
+            if (target.type === "channel") {
+              const ch = levels[target.channelId];
+              if (ch) ch.channel = val;
+            } else if (target.type === "layer") {
+              const ch = levels[target.channelId];
+              if (ch && ch.layers?.[target.layerId] !== undefined) {
+                ch.layers[target.layerId] = val;
+                if (val > 0 && ch.channel < 0.25) {
+                  ch.channel = 0.35;
+                }
               }
             }
+            await animateLevels(levels);
+          } else {
+            if (target.type === "channel") {
+              const ch = state.channels[target.channelId];
+              if (ch) {
+                ch.volume = val;
+                if (engine.context) engine.setChannel(target.channelId, val);
+              }
+            } else if (target.type === "layer") {
+              const ch = state.channels[target.channelId];
+              if (ch && ch.layers?.[target.layerId] !== undefined) {
+                ch.layers[target.layerId] = val;
+                if (engine.context) engine.setLayer(target.channelId, target.layerId, val);
+                if (val > 0 && ch.volume < 0.25) {
+                  ch.volume = 0.35;
+                  if (engine.context) engine.setChannel(target.channelId, 0.35);
+                }
+              }
+            }
+            render(engine.active);
+            saveState();
           }
-          render(engine.active);
-          saveState();
           break;
         }
 
