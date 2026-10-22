@@ -13,6 +13,7 @@ import { bindSavedMixes } from "./ui/saved-mixes.js";
 import { openAuthModal } from "./ui/auth.js";
 import { bindAccountMenu } from "./ui/account-menu.js";
 import { bindToast, showToast } from "./ui/toast.js";
+import { bindAssistant } from "./ui/assistant.js";
 
 const state = loadState();
 let generated = new Set();
@@ -53,6 +54,17 @@ if (guestTip) {
 bindAccountMenu({
   openAuth: openAuthModal,
   openMixes: () => savedMixes.open(),
+});
+bindAssistant({
+  soundscapes,
+  state,
+  engine,
+  render: (playing) => render(playing !== undefined ? playing : engine.active),
+  getSavedMixes: () => savedMixes.getMixes(),
+  onNowPlayingChange: (name) => {
+    nowPlayingName = name;
+    updateNowPlaying();
+  },
 });
 saveState();
 

@@ -12,6 +12,7 @@ import { sameOrigin } from "./middleware/sameOrigin.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import healthRouter from "./routes/health.js";
 import mixRouter from "./routes/mix.js";
+import chatRouter from "./routes/chat.js";
 import authRouter from "./routes/auth.js";
 import mixesRouter from "./routes/mixes.js";
 
@@ -87,8 +88,18 @@ function withSession(request, response, next) {
   return middleware(request, response, next);
 }
 
+function optionalSession(request, response, next) {
+  const middleware = getSessionMiddleware();
+  if (!middleware) return next();
+  return middleware(request, response, (err) => {
+    if (err) console.error(`[chat-session] ${err.name}`);
+    next();
+  });
+}
+
 app.use("/api/health", healthRouter);
 app.use("/api/mix", mixRouter);
+app.use("/api/chat", optionalSession, chatRouter);
 
 // While the database is down, the front end can still ask "am I signed in?" and gets a calm answer.
 app.get("/api/auth/me", (request, response, next) => {

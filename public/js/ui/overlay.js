@@ -46,6 +46,7 @@ export function registerOverlay(id, handlers) {
     close: handlers.close,
     trapFocus: handlers.trapFocus !== false,
     usesScrim: handlers.usesScrim !== false,
+    dismissOnOutside: handlers.dismissOnOutside !== false,
   });
 }
 
@@ -210,6 +211,9 @@ document.addEventListener("pointerdown", (event) => {
   // 3. For popover menus (usesScrim: false, e.g. accountMenu):
   // If click is on the trigger button, let the button click listener toggle it
   if (!current.definition.usesScrim) {
+    if (current.definition.dismissOnOutside === false) {
+      return;
+    }
     if (current.trigger && (current.trigger === target || current.trigger.contains(target))) {
       return;
     }

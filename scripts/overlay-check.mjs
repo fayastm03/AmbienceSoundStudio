@@ -39,6 +39,7 @@ const requiredInOverlayRoot = [
   'id="authModal"',
   'id="shortcutDialog"',
   'id="toastRegion"',
+  'id="assistantPanel"',
 ];
 for (const id of requiredInOverlayRoot) {
   if (!overlayRootContent.includes(id)) {
