@@ -9,4 +9,11 @@ export const soundscapes = [
   { id: "fire", name: "Fireplace", description: "A crackling fire for a little extra warmth.", accent: { light: [181, 93, 48], dark: [239, 157, 91] }, layers: [
     { id: "crackle", label: "Crackle", file: "sounds/fireplace/crackle.mp3", defaultVolume: .6, gainDb: 0, pan: 0 }, { id: "firewood", label: "Firewood", file: "sounds/fireplace/firewood.mp3", defaultVolume: .4, gainDb: -4, pan: 0 }, { id: "embers", label: "Embers", file: "sounds/fireplace/embers.mp3", defaultVolume: .3, gainDb: -9, pan: -.25 },
   ] },
+  { id: "nature", name: "Nature", description: "Forest breeze, flowing water, birdsong, and outdoor calm.", accent: { light: [56, 128, 78], dark: [118, 198, 138] }, procedural: true, layers: [
+    { id: "wind", label: "Wind", defaultVolume: 0.4, gainDb: -2, pan: -0.2, procedural: true },
+    { id: "stream", label: "Stream", defaultVolume: 0.3, gainDb: -5, pan: 0.2, procedural: true },
+    { id: "birds", label: "Birds", defaultVolume: 0.3, gainDb: -4, pan: 0.15, procedural: true },
+    { id: "crickets", label: "Crickets", defaultVolume: 0.0, gainDb: -8, pan: -0.3, procedural: true },
+    { id: "waves", label: "Waves", defaultVolume: 0.0, gainDb: -3, pan: 0.0, procedural: true },
+  ] },
 ];

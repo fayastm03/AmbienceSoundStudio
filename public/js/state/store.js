@@ -1,7 +1,7 @@
 // Owns persisted mixer settings and provides safe defaults.
 import { soundscapes } from "../config/soundscapes.js";
 const key = "ambient-sound-studio";
-const defaults = { channels: Object.fromEntries(soundscapes.map((soundscape) => [soundscape.id, { volume: soundscape.id === "rain" ? .64 : soundscape.id === "coffee" ? .36 : .28, layers: Object.fromEntries(soundscape.layers.map((layer) => [layer.id, layer.defaultVolume])) }])), master: .78, muted: false, theme: "auto", naturalDrift: true };
+const defaults = { channels: Object.fromEntries(soundscapes.map((soundscape) => [soundscape.id, { volume: soundscape.id === "rain" ? .64 : soundscape.id === "coffee" ? .36 : soundscape.id === "nature" ? .40 : .28, layers: Object.fromEntries(soundscape.layers.map((layer) => [layer.id, layer.defaultVolume])) }])), master: .78, muted: false, theme: "auto", naturalDrift: true };
 const clone = (value) => JSON.parse(JSON.stringify(value));
 let state = clone(defaults);
 export function getState() { return state; }

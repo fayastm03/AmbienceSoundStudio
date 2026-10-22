@@ -59,7 +59,7 @@ export async function computeUserMoodAnalytics(userId) {
     );
     const pool = topMoodEntries.length > 0 ? topMoodEntries : entries;
 
-    const channelSums = { rain: 0, cafe: 0, fire: 0 };
+    const channelSums = { rain: 0, cafe: 0, fire: 0, nature: 0 };
     let mixCount = 0;
 
     pool.forEach((e) => {
@@ -70,6 +70,7 @@ export async function computeUserMoodAnalytics(userId) {
           e.mix.cafe !== undefined ? e.mix.cafe : e.mix.coffee
         );
         channelSums.fire += extractChannelVolume(e.mix.fire);
+        channelSums.nature += extractChannelVolume(e.mix.nature);
       }
     });
 
@@ -77,6 +78,7 @@ export async function computeUserMoodAnalytics(userId) {
       rain: mixCount ? Math.round(channelSums.rain / mixCount) : 0,
       cafe: mixCount ? Math.round(channelSums.cafe / mixCount) : 0,
       fire: mixCount ? Math.round(channelSums.fire / mixCount) : 0,
+      nature: mixCount ? Math.round(channelSums.nature / mixCount) : 0,
     };
 
     // 3. Time of day they usually listen
@@ -112,6 +114,7 @@ export async function computeUserMoodAnalytics(userId) {
       { name: "rain", val: avgMix.rain },
       { name: "cafe", val: avgMix.cafe },
       { name: "fire", val: avgMix.fire },
+      { name: "nature", val: avgMix.nature },
     ]
       .filter((c) => c.val > 0)
       .sort((a, b) => b.val - a.val);

@@ -25,6 +25,7 @@ const ALLOWED_MIX_KEYS = [
   "cafe",
   "coffee",
   "fire",
+  "nature",
   "heavy-rain",
   "light-rain",
   "window",
@@ -35,6 +36,11 @@ const ALLOWED_MIX_KEYS = [
   "crackle",
   "firewood",
   "embers",
+  "wind",
+  "stream",
+  "birds",
+  "crickets",
+  "waves",
 ];
 
 const chatSchema = z.object({
@@ -56,8 +62,8 @@ Analyze the user's message and current mix levels, then respond in strict JSON w
 - "reply": 1-2 warm, concise sentences acknowledging the mood and adjustments.
 - "mood": exactly one of [calm, focused, sleepy, cozy, stressed, sad, happy, energetic].
 - "mix": object with channels and layers set from 0 to 100.
-Channels: rain, cafe, fire.
-Layers: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers.
+Channels: rain, cafe, fire, nature.
+Layers: heavy-rain, light-rain, window, roof, thunder, chatter, espresso, crackle, firewood, embers, wind, stream, birds, crickets, waves.
 - "changes": short description of adjustments made.
 
 For relative requests like "warmer" or "less crowded", adjust relative to the current mix. Output valid JSON only.`;

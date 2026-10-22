@@ -216,6 +216,9 @@ body[data-theme="dark"] .btn-ghost.btn-loading::after {
 .drop-one { left: 12px; animation-delay: -.2s; }.drop-two { left: 33px; height: 13px; animation-delay: -.8s; }.drop-three { left: 52px; height: 25px; animation-delay: -1.2s; }
 .cup { position: absolute; right: 4px; bottom: 13px; width: 39px; height: 25px; border: 3px solid var(--accent); border-top: 0; border-radius: 0 0 12px 12px; }.cup::after { content: ""; position: absolute; right: -12px; top: 5px; width: 9px; height: 10px; border: 3px solid var(--accent); border-left: 0; border-radius: 0 8px 8px 0; }.steam { position: absolute; bottom: 24px; width: 4px; height: 23px; border-left: 2px solid var(--accent); border-radius: 50%; animation: steam 2.2s ease-in-out infinite; }.steam-one { left: 10px; }.steam-two { left: 23px; animation-delay: -.8s; }
 .flame { position: absolute; right: 12px; bottom: 10px; width: 31px; height: 43px; border-radius: 60% 40% 55% 45%; background: var(--accent); transform: rotate(45deg); animation: flicker .8s ease-in-out infinite alternate; }.ember { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: ember 1.5s ease-out infinite; }.ember-one { right: 4px; bottom: 38px; }.ember-two { right: 42px; bottom: 20px; animation-delay: -.7s; }
+.leaf { position: absolute; width: 22px; height: 32px; border-radius: 0 100% 0 100%; background: var(--accent); transform: rotate(25deg); opacity: 0.85; }
+.leaf-one { right: 18px; bottom: 16px; animation: sway 3s ease-in-out infinite alternate; }
+.leaf-two { right: 34px; bottom: 10px; width: 16px; height: 24px; transform: rotate(-35deg); opacity: 0.6; animation: sway 2.5s ease-in-out infinite alternate-reverse; }
 .transport { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 10px 26px var(--shadow); transition: background 1.5s ease; }
 .play-button, .mute-button { display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 9px; padding: 13px 22px; font: 700 12px inherit; }
 .play-button { min-width: 105px; background: var(--text); color: var(--surface); }.mute-button { background: var(--accent-soft); color: var(--text); }
@@ -385,10 +388,12 @@ body[data-theme="dark"] .btn-ghost.btn-loading::after {
 .mix-level-fill-rain { background: #2f677e; }
 .mix-level-fill-coffee { background: #96613d; }
 .mix-level-fill-fire { background: #b85332; }
+.mix-level-fill-nature { background: #38804e; }
 
 body[data-theme="dark"] .mix-level-fill-rain { background: #97cac5; }
 body[data-theme="dark"] .mix-level-fill-coffee { background: #d4a373; }
 body[data-theme="dark"] .mix-level-fill-fire { background: #e07a5f; }
+body[data-theme="dark"] .mix-level-fill-nature { background: #76c68a; }
 
 .mix-skeleton { height: 62px; border-radius: 9px; background: linear-gradient(90deg, var(--accent-soft), var(--surface-2), var(--accent-soft)); background-size: 200% 100%; animation: skeleton 1.2s ease-in-out infinite; }
 
@@ -493,7 +498,7 @@ body[data-theme="dark"] .mix-level-fill-fire { background: #e07a5f; }
   pointer-events: auto;
 }
 .shortcut-list { margin: 22px 0 0; }.shortcut-list > div { display: flex; justify-content: space-between; gap: 20px; padding: 11px 0; border-bottom: 1px solid var(--line); }.shortcut-list dt, .shortcut-list dd { margin: 0; }.shortcut-list dd { color: var(--muted); font-size: 12px; }
-@keyframes rain { from { transform: translateY(-35px); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(35px); opacity: 0; } } @keyframes steam { 50% { transform: translateY(-7px) rotate(8deg); opacity: .4; } } @keyframes flicker { to { transform: rotate(42deg) scale(.88,1.08); } } @keyframes ember { from { transform: translate(0); opacity: 1; } to { transform: translate(-12px,-30px); opacity: 0; } }
+@keyframes rain { from { transform: translateY(-35px); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(35px); opacity: 0; } } @keyframes steam { 50% { transform: translateY(-7px) rotate(8deg); opacity: .4; } } @keyframes flicker { to { transform: rotate(42deg) scale(.88,1.08); } } @keyframes ember { from { transform: translate(0); opacity: 1; } to { transform: translate(-12px,-30px); opacity: 0; } } @keyframes sway { from { transform: rotate(15deg) scale(0.95); } to { transform: rotate(35deg) scale(1.05); } }
 @keyframes skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (max-width: 720px) { .panel-content { top: auto; bottom: 0; width: 100%; height: min(88vh, 620px); padding: var(--space-4); border-radius: 20px 20px 0 0; transform: translateY(100%); }.detail-panel[aria-hidden="false"] .panel-content { transform: translateY(0); } }
 

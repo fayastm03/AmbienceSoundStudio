@@ -16,10 +16,15 @@ for (const soundscape of soundscapes) {
   for (const layer of soundscape.layers) {
     layerSchemas[layer.id] = z.number().min(0).max(1);
   }
-  channelSchemas[soundscape.id] = z.object({
+  const chSchema = z.object({
     channel: z.number().min(0).max(1),
     layers: z.object(layerSchemas).strict(),
   }).strict();
+  if (soundscape.id === "nature") {
+    channelSchemas[soundscape.id] = chSchema.optional();
+  } else {
+    channelSchemas[soundscape.id] = chSchema;
+  }
 }
 
 const levelsSchema = z.object(channelSchemas).strict();

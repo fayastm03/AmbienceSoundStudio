@@ -29,14 +29,14 @@ function channelByHint(configs, hint) {
 function createKeywordMix(text, configs) {
   const mood = text.toLowerCase();
   const is = (...words) => words.some((word) => mood.includes(word));
-  const weights = Object.fromEntries(configs.map((config) => [config.id, is("coffee", "work", "cafe") && config.name.toLowerCase().includes("coffee") ? .55 : is("fire", "cosy", "cozy", "warm") && config.name.toLowerCase().includes("fire") ? .6 : is("storm") && config.name.toLowerCase().includes("rain") ? .8 : is("sleep", "focus", "reading", "calm") && config.name.toLowerCase().includes("rain") ? .42 : is("sleep", "calm") ? .2 : .12]));
+  const weights = Object.fromEntries(configs.map((config) => [config.id, is("nature", "forest", "tree", "birds", "stream", "river", "wind", "waves", "crickets", "outdoor") && config.id === "nature" ? .65 : is("coffee", "work", "cafe") && config.id === "coffee" ? .55 : is("fire", "cosy", "cozy", "warm") && config.id === "fire" ? .6 : is("storm") && config.id === "rain" ? .8 : is("sleep", "focus", "reading", "calm") && config.id === "rain" ? .42 : is("sleep", "calm") ? .2 : .12]));
   if (is("focus", "reading")) {
     const coffee = channelByHint(configs, "coffee");
     if (coffee) weights[coffee] = .28;
   }
   return {
-    name: is("sleep") ? "Sleepy shelter" : is("focus", "reading") ? "Quiet concentration" : is("storm") ? "Storm watch" : is("cosy", "cozy", "warm") ? "Fireside comfort" : is("coffee", "work") ? "Café focus" : is("calm") ? "Gentle reset" : "A considered moment",
-    explanation: is("storm") ? "A deep rain-led mix with a little weather in the distance." : is("sleep") ? "A low, gentle blend designed to stay soft and unhurried." : is("focus", "reading") ? "Steady rain and a touch of room tone make a calm focus bed." : "A balanced blend shaped from your words, ready to adjust by ear.",
+    name: is("nature", "forest", "birds", "stream") ? "Forest canopy" : is("sleep") ? "Sleepy shelter" : is("focus", "reading") ? "Quiet concentration" : is("storm") ? "Storm watch" : is("cosy", "cozy", "warm") ? "Fireside comfort" : is("coffee", "work") ? "Café focus" : is("calm") ? "Gentle reset" : "A considered moment",
+    explanation: is("nature", "forest", "birds", "stream") ? "Gentle breeze, flowing water, and soft birdsong for an outdoor breath." : is("storm") ? "A deep rain-led mix with a little weather in the distance." : is("sleep") ? "A low, gentle blend designed to stay soft and unhurried." : is("focus", "reading") ? "Steady rain and a touch of room tone make a calm focus bed." : "A balanced blend shaped from your words, ready to adjust by ear.",
     levels: Object.fromEntries(configs.map((config) => [config.id, { channel: weights[config.id], layers: Object.fromEntries(config.layers.map((layer) => [layer.id, layer.defaultVolume * (is("storm") && layer.id.includes("thunder") ? 1.5 : 1)])) }])),
   };
 }

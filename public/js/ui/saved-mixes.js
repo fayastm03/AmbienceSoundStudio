@@ -361,9 +361,8 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
 
     if (reduceMotion) {
       soundscapes.forEach((config) => {
-        const targetConfig = savedMix.levels?.[config.id];
-        if (!targetConfig) return;
-        const targetChannel = targetConfig.channel;
+        const targetConfig = savedMix.levels?.[config.id] || { channel: 0, layers: {} };
+        const targetChannel = targetConfig.channel ?? 0;
         setChannelVolume(config.id, targetChannel);
         if (engine.context) engine.setChannel(config.id, targetChannel);
 
@@ -405,11 +404,10 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
         const eased = 1 - (1 - progress) ** 3;
 
         soundscapes.forEach((config) => {
-          const targetConfig = savedMix.levels?.[config.id];
-          if (!targetConfig) return;
+          const targetConfig = savedMix.levels?.[config.id] || { channel: 0, layers: {} };
 
           const initChannel = initial[config.id].channel;
-          const targetChannel = targetConfig.channel;
+          const targetChannel = targetConfig.channel ?? 0;
           const currentChannel = progress >= 1 ? targetChannel : initChannel + (targetChannel - initChannel) * eased;
 
           setChannelVolume(config.id, currentChannel);
@@ -439,8 +437,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
         } else {
           // Strictly guarantee zero volume invariant for silent layers
           soundscapes.forEach((config) => {
-            const targetConfig = savedMix.levels?.[config.id];
-            if (!targetConfig) return;
+            const targetConfig = savedMix.levels?.[config.id] || { channel: 0, layers: {} };
             config.layers.forEach((layer) => {
               if ((targetConfig.layers?.[layer.id] ?? 0) === 0) {
                 setLayerVolume(config.id, layer.id, 0);

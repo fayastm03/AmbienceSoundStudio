@@ -80,6 +80,7 @@ export function createEngine(state, onProgress, onLayerStatus, onMeter) {
       if (!this.context || !this.active) return;
       this.clearDrift();
       this.fadeMaster(0, .1);
+      this.channels.forEach((channel) => channel.layers.forEach((layer) => layer.pause?.()));
       await wait(320);
       await this.context.suspend();
       this.active = false;
@@ -87,6 +88,7 @@ export function createEngine(state, onProgress, onLayerStatus, onMeter) {
     async resume() {
       await this.context?.resume();
       this.active = true;
+      this.channels.forEach((channel) => channel.layers.forEach((layer) => layer.resume?.()));
       this.rampLayers(1.2);
       this.scheduleDrift();
     },
@@ -149,7 +151,7 @@ export function createEngine(state, onProgress, onLayerStatus, onMeter) {
       };
       tick();
     },
-    close() { this.clearDrift(); const closing = this.context?.close(); this.context = null; this.master = null; this.channels.clear(); this.active = false; return closing; },
+    close() { this.clearDrift(); this.channels.forEach((channel) => channel.layers.forEach((layer) => layer.destroy?.())); const closing = this.context?.close(); this.context = null; this.master = null; this.channels.clear(); this.active = false; return closing; },
   };
   return engine;
 }

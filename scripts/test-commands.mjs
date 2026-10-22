@@ -107,6 +107,18 @@ test("Assistant Commands - Sound channels & layers relative (+/-0.2)", () => {
   const boostCrackle = parseCommand("boost crackle", mockContext);
   assert.equal(boostCrackle?.actions[0]?.target?.layerId, "crackle");
   assert.equal(boostCrackle?.actions[0]?.delta, 0.20);
+
+  const moreNature = parseCommand("more nature", mockContext);
+  assert.equal(moreNature?.actions[0]?.target?.channelId, "nature");
+  assert.equal(moreNature?.actions[0]?.delta, 0.20);
+
+  const moreBirds = parseCommand("more birds", mockContext);
+  assert.equal(moreBirds?.actions[0]?.target?.layerId, "birds");
+  assert.equal(moreBirds?.actions[0]?.delta, 0.20);
+
+  const lessWind = parseCommand("less wind", mockContext);
+  assert.equal(lessWind?.actions[0]?.target?.layerId, "wind");
+  assert.equal(lessWind?.actions[0]?.delta, -0.20);
 });
 
 test("Assistant Commands - Turn off and set target percentage", () => {
@@ -127,6 +139,14 @@ test("Assistant Commands - Turn off and set target percentage", () => {
   const thunder30 = parseCommand("thunder 30%", mockContext);
   assert.equal(thunder30?.actions[0]?.target?.layerId, "thunder");
   assert.equal(thunder30?.actions[0]?.value, 0.30);
+
+  const turnOffCrickets = parseCommand("turn off crickets", mockContext);
+  assert.equal(turnOffCrickets?.actions[0]?.target?.layerId, "crickets");
+  assert.equal(turnOffCrickets?.actions[0]?.value, 0);
+
+  const waves40 = parseCommand("set waves to 40%", mockContext);
+  assert.equal(waves40?.actions[0]?.target?.layerId, "waves");
+  assert.equal(waves40?.actions[0]?.value, 0.40);
 });
 
 test("Assistant Commands - Sleep timer controls", () => {
@@ -142,8 +162,43 @@ test("Assistant Commands - Sleep timer controls", () => {
   assert.equal(t15?.actions[0]?.type, "timer_start");
   assert.equal(t15?.actions[0]?.minutes, 15);
 
+  // Variations: "sleep timer", "sleeper timer", "sleep timer 30", "sleeper timer 30"
+  const bareTimer = parseCommand("sleep timer", mockContext);
+  assert.equal(bareTimer?.actions[0]?.type, "timer_start");
+  assert.equal(bareTimer?.actions[0]?.minutes, 30);
+
+  const sleeperTimer = parseCommand("sleeper timer", mockContext);
+  assert.equal(sleeperTimer?.actions[0]?.type, "timer_start");
+  assert.equal(sleeperTimer?.actions[0]?.minutes, 30);
+
+  const st30 = parseCommand("sleep timer 30", mockContext);
+  assert.equal(st30?.actions[0]?.type, "timer_start");
+  assert.equal(st30?.actions[0]?.minutes, 30);
+
+  const st30m = parseCommand("sleep timer 30 mins", mockContext);
+  assert.equal(st30m?.actions[0]?.type, "timer_start");
+  assert.equal(st30m?.actions[0]?.minutes, 30);
+
+  const st45 = parseCommand("sleep timer for 45 minutes", mockContext);
+  assert.equal(st45?.actions[0]?.type, "timer_start");
+  assert.equal(st45?.actions[0]?.minutes, 45);
+
+  const min30Timer = parseCommand("30 min sleep timer", mockContext);
+  assert.equal(min30Timer?.actions[0]?.type, "timer_start");
+  assert.equal(min30Timer?.actions[0]?.minutes, 30);
+
+  const turnOffIn = parseCommand("turn off in 20 mins", mockContext);
+  assert.equal(turnOffIn?.actions[0]?.type, "timer_start");
+  assert.equal(turnOffIn?.actions[0]?.minutes, 20);
+
   const cancel = parseCommand("cancel timer", mockContext);
   assert.equal(cancel?.actions[0]?.type, "timer_cancel");
+
+  const cancelSleep = parseCommand("cancel sleep timer", mockContext);
+  assert.equal(cancelSleep?.actions[0]?.type, "timer_cancel");
+
+  const stopSleep = parseCommand("stop sleep timer", mockContext);
+  assert.equal(stopSleep?.actions[0]?.type, "timer_cancel");
 });
 
 test("Assistant Commands - Presets, modifiers, reset, undo, surprise, status, help, play my usual", () => {
@@ -169,6 +224,10 @@ test("Assistant Commands - Presets, modifiers, reset, undo, surprise, status, he
 
   const undo = parseCommand("undo", mockContext);
   assert.equal(undo?.actions[0]?.type, "undo");
+
+  const undoEmpty = parseCommand("undo", { ...mockContext, canUndo: false });
+  assert.equal(undoEmpty?.actions?.length, 0);
+  assert.ok(undoEmpty?.reply.includes("Nothing to undo"));
 
   const surprise = parseCommand("surprise me", mockContext);
   assert.equal(surprise?.actions[0]?.type, "surprise");

@@ -228,6 +228,7 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       { key: "rain", label: "Rain" },
       { key: "cafe", alt: "coffee", label: "Cafe" },
       { key: "fire", label: "Fire" },
+      { key: "nature", label: "Nature" },
     ];
     for (const ch of channelMap) {
       const val = mix[ch.key] !== undefined ? mix[ch.key] : (ch.alt ? mix[ch.alt] : undefined);
@@ -254,6 +255,7 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       { key: "rain", label: "Rain" },
       { key: "coffee", label: "Cafe" },
       { key: "fire", label: "Fire" },
+      { key: "nature", label: "Nature" },
     ];
     for (const ch of channelMap) {
       const chState = state?.channels?.[ch.key];
@@ -333,6 +335,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       soundscapes,
       savedMixes,
       usualLevels: currentUsualLevels,
+      canUndo: executor.canUndo(),
+      timerRemaining: executor.getTimerRemaining(),
     });
     if (localCmd) {
       appendMessage("user", clean);
@@ -559,12 +563,34 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
     });
   }
 
+  // Expose global pushUndo hook for Saved Mixes or manual mixer adjustments
+  window.pushUndo = () => {
+    executor.saveSnapshot();
+    updateUndoButton();
+  };
+
+  function syncTimerBanner() {
+    if (!timerBanner) return;
+    const rem = executor.getTimerRemaining();
+    if (rem && rem > 0) {
+      timerBanner.hidden = false;
+      if (timerLabel) timerLabel.textContent = `Sleep timer: ${formatTime(rem)}`;
+    } else {
+      timerBanner.hidden = true;
+    }
+  }
+
   renderMessages();
   updateUndoButton();
+  syncTimerBanner();
   loadHistory();
 
   return {
-    open: () => openOverlay("assistantPanel", { trigger: button, focusTarget: input }),
+    open: () => {
+      syncTimerBanner();
+      updateUndoButton();
+      openOverlay("assistantPanel", { trigger: button, focusTarget: input });
+    },
     close: () => closeOverlay("assistantPanel"),
     isAssistantOpen: () => isOverlayOpen("assistantPanel"),
     getCurrentMoodTags: () => [...currentMoodTags],

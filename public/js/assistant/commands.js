@@ -72,6 +72,7 @@ const TARGET_MAP = [
   { id: "rain", type: "channel", channelId: "rain", label: "Rain", keywords: ["rain", "rainy", "raining", "rainstorm", "shower", "showers", "water"] },
   { id: "coffee", type: "channel", channelId: "coffee", label: "Coffee Shop", keywords: ["coffee", "cafe", "café", "coffeeshop", "coffee shop", "shop", "coffees"] },
   { id: "fire", type: "channel", channelId: "fire", label: "Fireplace", keywords: ["fire", "fireplace", "campfire", "bonfire", "hearth", "fires"] },
+  { id: "nature", type: "channel", channelId: "nature", label: "Nature", keywords: ["nature", "forest", "woods", "outdoors", "outdoor", "green", "trees"] },
   // Layers
   { id: "heavy-rain", type: "layer", channelId: "rain", layerId: "heavy-rain", label: "Heavy rain", keywords: ["heavy rain", "heavyrain", "downpour", "heavy", "hard rain"] },
   { id: "light-rain", type: "layer", channelId: "rain", layerId: "light-rain", label: "Light rain", keywords: ["light rain", "lightrain", "drizzle", "sprinkle", "gentle rain"] },
@@ -83,6 +84,11 @@ const TARGET_MAP = [
   { id: "crackle", type: "layer", channelId: "fire", layerId: "crackle", label: "Crackle", keywords: ["crackle", "crackling", "snaps", "pops", "crackles"] },
   { id: "firewood", type: "layer", channelId: "fire", layerId: "firewood", label: "Firewood", keywords: ["firewood", "wood", "logs", "timber"] },
   { id: "embers", type: "layer", channelId: "fire", layerId: "embers", label: "Embers", keywords: ["embers", "ember", "coals", "glow", "ashes"] },
+  { id: "wind", type: "layer", channelId: "nature", layerId: "wind", label: "Wind", keywords: ["wind", "breeze", "gust", "draft", "air"] },
+  { id: "stream", type: "layer", channelId: "nature", layerId: "stream", label: "Stream", keywords: ["stream", "creek", "brook", "river", "flowing water"] },
+  { id: "birds", type: "layer", channelId: "nature", layerId: "birds", label: "Birds", keywords: ["birds", "bird", "chirp", "chirping", "songbird", "songbirds", "chirps"] },
+  { id: "crickets", type: "layer", channelId: "nature", layerId: "crickets", label: "Crickets", keywords: ["crickets", "cricket", "cicada", "cicadas", "night sounds"] },
+  { id: "waves", type: "layer", channelId: "nature", layerId: "waves", label: "Waves", keywords: ["waves", "wave", "ocean", "surf", "tide", "sea"] },
 ];
 
 // Match a string fragment to a soundscape channel or layer (exact or typo-tolerant)
@@ -139,7 +145,7 @@ export function generateSurpriseMix() {
     const layerLevels = {};
     config.layers.forEach((layer) => {
       // Body layers can be up to 0.7; accents at most 0.3
-      const isAccent = ["thunder", "espresso", "embers"].includes(layer.id);
+      const isAccent = ["thunder", "espresso", "embers", "crickets", "waves"].includes(layer.id);
       const cap = isAccent ? 0.3 : 0.7;
       const vol = Math.random() < 0.25 ? 0 : Math.round((Math.random() * cap) * 100) / 100;
       layerLevels[layer.id] = vol;
@@ -167,6 +173,7 @@ export function getPresetMix(mood) {
     coffee: is("coffee", "work", "cafe") ? 0.55 : is("focus", "reading") ? 0.28 : is("sleep", "calm") ? 0.15 : 0.12,
     fire: is("fire", "cosy", "cozy", "warm") ? 0.60 : is("sleep") ? 0.25 : 0.15,
     rain: is("storm") ? 0.80 : is("sleep", "focus", "reading", "calm") ? 0.45 : 0.20,
+    nature: is("nature", "forest", "woods", "outdoor", "walk") ? 0.60 : is("reading", "calm") ? 0.35 : is("sleep") ? 0.20 : 0.15,
   };
 
   const levels = {};
@@ -191,6 +198,8 @@ export function getPresetMix(mood) {
     cozy: "Fireside comfort",
     warm: "Fireside comfort",
     storm: "Storm watch",
+    forest: "Forest canopy",
+    nature: "Forest canopy",
   };
 
   return {
@@ -266,16 +275,36 @@ export function parseCommand(rawText, ctx = {}) {
     }
   }
 
-  // 4. Sleep timer: "sleep in N minutes / hours", "timer N min", "cancel timer"
-  if (/^(cancel timer|stop timer|clear timer|turn off timer|disable timer)$/i.test(stripped)) {
+  // 4. Sleep timer: "sleep in N minutes / hours", "sleep timer 30", "timer 15 min", "cancel timer"
+  if (/^(cancel|stop|clear|turn off|disable)\s+(?:sleep\s+|sleeper\s+)?timer$/i.test(stripped)) {
     return {
       actions: [{ type: "timer_cancel" }],
       reply: "Sleep timer cancelled."
     };
   }
 
-  const timerMatch = stripped.match(/^(?:sleep\s+(?:in|after)|timer\s*(?:for)?|set\s+timer\s*(?:for)?)\s+(\d+)\s*(mins?|minutes?|hours?|hrs?|h|m)?$/i)
-    || stripped.match(/^(\d+)\s*(mins?|minutes?)\s+timer$/i);
+  // 4b. Sleep timer status query
+  if (/^(?:timer\s+status|timer\s+left|how\s+much\s+time\s+left(?:\s+on\s+timer)?|time\s+left(?:\s+on\s+timer)?)$/i.test(stripped)) {
+    const rem = ctx.timerRemaining;
+    if (rem && rem > 0) {
+      const mins = Math.floor(rem / 60);
+      const secs = rem % 60;
+      return {
+        actions: [],
+        reply: `Sleep timer has ${mins}m ${secs}s remaining.`
+      };
+    }
+    return {
+      actions: [],
+      reply: "No active sleep timer. You can say 'sleep in 30 mins' to start one."
+    };
+  }
+
+  // 4c. Set timer with duration
+  let timerMatch = stripped.match(/^(\d+)\s*(mins?|minutes?|hours?|hrs?|h|m)\s+(?:sleep\s+|sleeper\s+)?timer$/i);
+  if (!timerMatch) {
+    timerMatch = stripped.match(/^(?:(?:set\s+(?:a\s+)?)?(?:sleep\s+|sleeper\s+)?timer\s*(?:for)?|sleep\s*(?:in|after)?|turn\s+off\s*(?:audio|sound)?\s*in|stop\s+in)\s+(\d+)\s*(mins?|minutes?|hours?|hrs?|h|m)?$/i);
+  }
   if (timerMatch) {
     const amount = parseInt(timerMatch[1], 10);
     const unit = (timerMatch[2] || "min").toLowerCase();
@@ -288,6 +317,14 @@ export function parseCommand(rawText, ctx = {}) {
     }
   }
 
+  // 4d. Bare timer without duration (e.g. "sleep timer", "sleeper timer", "set sleep timer", "timer")
+  if (/^(?:set\s+(?:a\s+)?)?(?:sleep\s+|sleeper\s+)?timer$/i.test(stripped)) {
+    return {
+      actions: [{ type: "timer_start", minutes: 30 }],
+      reply: "Sleep timer set for 30 minutes. (Say 'cancel timer' or 'sleep in 45 mins' to change it)."
+    };
+  }
+
   // 5. Reset & Undo
   if (/^(reset|reset all|reset layers|default|defaults|default mix|reset mix)$/i.test(stripped)) {
     return {
@@ -297,6 +334,12 @@ export function parseCommand(rawText, ctx = {}) {
   }
 
   if (/^(undo|revert|go back|undo that|step back)$/i.test(stripped)) {
+    if (ctx.canUndo === false) {
+      return {
+        actions: [],
+        reply: "Nothing to undo."
+      };
+    }
     return {
       actions: [{ type: "undo" }],
       reply: "Undid last change."
@@ -342,7 +385,7 @@ export function parseCommand(rawText, ctx = {}) {
   if (/^(help|commands|what can you do|examples|what can i say)$/i.test(stripped)) {
     return {
       actions: [{ type: "help" }],
-      reply: "You can ask: 'more rain', 'less chatter', 'volume 50%', 'sleep in 30 mins', 'warmer', 'surprise me', 'what's playing', 'reset', or 'undo'."
+      reply: "You can ask: 'more rain', 'more birds', 'less chatter', 'volume 50%', 'sleep in 30 mins', 'warmer', 'surprise me', 'what's playing', 'reset', or 'undo'."
     };
   }
 
@@ -366,15 +409,16 @@ export function parseCommand(rawText, ctx = {}) {
     };
   }
 
-  // 10. Keyword presets (sleep, focus, reading, calm, cosy, storm)
-  const presetWords = ["sleep", "focus", "reading", "calm", "cosy", "cozy", "warm", "storm", "thunderstorm"];
+  // 10. Keyword presets (sleep, focus, reading, calm, cosy, storm, forest, nature)
+  const presetWords = ["sleep", "focus", "reading", "calm", "cosy", "cozy", "warm", "storm", "thunderstorm", "forest", "nature"];
   for (const pw of presetWords) {
     if (stripped === pw || stripped === `${pw} mood` || stripped === `${pw} mix`) {
       const canonical = pw === "thunderstorm" ? "storm" : pw === "cozy" || pw === "warm" ? "cosy" : pw;
       const preset = getPresetMix(canonical);
+      const extraTip = canonical === "sleep" ? ' (Tip: say "timer 30m" to set a sleep timer).' : "";
       return {
         actions: [{ type: "preset", name: canonical, levels: preset.levels }],
-        reply: `Applied "${preset.name}".`
+        reply: `Applied "${preset.name}".${extraTip}`
       };
     }
   }
