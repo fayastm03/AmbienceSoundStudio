@@ -1,5 +1,20 @@
 import { MoodEntry } from "../models/MoodEntry.js";
 
+function extractChannelVolume(rawVal) {
+  if (rawVal == null) return 0;
+  let val = rawVal;
+  if (typeof val === "object") {
+    val = val.channel ?? val.volume ?? 0;
+  }
+  val = Number(val);
+  if (isNaN(val) || val <= 0) return 0;
+  // If normalized 0..1 scale (e.g. 0.7), convert to 0..100 percentage
+  if (val <= 1) {
+    return Math.round(val * 100);
+  }
+  return Math.min(100, Math.round(val));
+}
+
 /**
  * Reads the user's last 30 mood entries and computes:
  * - top mood and percentage
@@ -50,11 +65,11 @@ export async function computeUserMoodAnalytics(userId) {
     pool.forEach((e) => {
       if (e.mix && typeof e.mix === "object") {
         mixCount++;
-        channelSums.rain += Number(e.mix.rain || 0);
-        channelSums.cafe += Number(
-          e.mix.cafe !== undefined ? e.mix.cafe : (e.mix.coffee || 0)
+        channelSums.rain += extractChannelVolume(e.mix.rain);
+        channelSums.cafe += extractChannelVolume(
+          e.mix.cafe !== undefined ? e.mix.cafe : e.mix.coffee
         );
-        channelSums.fire += Number(e.mix.fire || 0);
+        channelSums.fire += extractChannelVolume(e.mix.fire);
       }
     });
 

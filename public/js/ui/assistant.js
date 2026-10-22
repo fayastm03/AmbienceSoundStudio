@@ -407,8 +407,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   }
 
   let historyLoaded = false;
-  async function loadHistory() {
-    if (historyLoaded) return;
+  async function loadHistory(force = false) {
+    if (historyLoaded && !force) return;
     try {
       const { messages: hist, profile } = await getChatHistory();
       if (profile) {
@@ -416,6 +416,9 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         if (profile.usualMix) {
           currentUsualLevels = mixToLevels(profile.usualMix);
         }
+      } else if (!force) {
+        currentUserProfile = null;
+        currentUsualLevels = null;
       }
 
       if (Array.isArray(hist) && hist.length > 0) {
@@ -441,10 +444,11 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         }
       } else if (profile?.greeting) {
         // Personalized first-message greeting using mood history
-        messages[0] = {
+        messages.length = 0;
+        messages.push({
           role: "assistant",
           text: profile.greeting,
-        };
+        });
       }
       renderMessages();
       historyLoaded = true;
@@ -452,6 +456,22 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       historyLoaded = true;
     }
   }
+
+  window.addEventListener("auth:change", (event) => {
+    if (event.detail?.user) {
+      loadHistory(true);
+    } else {
+      currentUserProfile = null;
+      currentUsualLevels = null;
+      historyLoaded = false;
+      messages.length = 0;
+      messages.push({
+        role: "assistant",
+        text: "Hi, I'm your sound assistant. Tell me what sounds you'd like, set a timer, or ask for adjustments.",
+      });
+      renderMessages();
+    }
+  });
 
   // Register non-modal overlay
   if (panel) {
