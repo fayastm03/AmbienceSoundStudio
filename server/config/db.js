@@ -10,6 +10,10 @@ mongoose.connection.on("error", (error) => {
 });
 
 export async function connectDatabase() {
+  if (!env.mongoUri) {
+    console.warn("[server] No MONGODB_URI configured");
+    return;
+  }
   if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) return;
   try {
     await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 5000 });

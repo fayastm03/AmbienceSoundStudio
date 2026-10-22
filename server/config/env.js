@@ -26,7 +26,7 @@ if (getEnv("SESSION_SECRET").length > 0 && getEnv("SESSION_SECRET").length < 32)
   missing.push("SESSION_SECRET (at least 32 characters)");
 }
 if (missing.length) {
-  throw new Error(`Missing or invalid environment variable names: ${missing.join(", ")}`);
+  console.warn(`[env] Missing or invalid environment variable names: ${missing.join(", ")}`);
 }
 
 export const env = Object.freeze({

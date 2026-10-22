@@ -66,7 +66,7 @@ const databaseReady = () => mongoose.connection.readyState === 1;
 let sessionMiddleware = null;
 function getSessionMiddleware() {
   if (sessionMiddleware) return sessionMiddleware;
-  if (!databaseReady()) return null;
+  if (!databaseReady() || !env.sessionSecret) return null;
 
   const store = MongoStore.create({
     clientPromise: Promise.resolve(mongoose.connection.getClient()),
