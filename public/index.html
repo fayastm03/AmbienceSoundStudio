@@ -80,9 +80,14 @@
           </div>
         </section>
 
-        <div class="loading" id="loading" hidden>
-          <span>Loading sound library</span>
-          <progress id="loadProgress" max="100" value="0"></progress>
+        <div class="loading" id="loading" hidden role="status" aria-live="polite">
+          <span class="buffering-bars" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </span>
+          <span class="loading-text">Buffering sound library</span>
+          <div class="loading-progress-wrap">
+            <progress id="loadProgress" max="100" value="0" aria-label="Audio loading progress"></progress>
+          </div>
           <span id="loadLabel">0%</span>
         </div>
         <p class="message" id="audioMessage" role="status" aria-live="polite"></p>

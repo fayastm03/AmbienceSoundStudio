@@ -169,6 +169,15 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         link.className = "assistant-helpline-link";
         textEl.appendChild(link);
         textEl.appendChild(document.createTextNode(". If you want, I can also play something quiet in the background."));
+      } else if (msg.thinking) {
+        textEl.textContent = "Thinking";
+        const dots = document.createElement("span");
+        dots.className = "assistant-thinking-dots";
+        dots.setAttribute("aria-hidden", "true");
+        dots.appendChild(document.createElement("span"));
+        dots.appendChild(document.createElement("span"));
+        dots.appendChild(document.createElement("span"));
+        textEl.appendChild(dots);
       } else {
         textEl.textContent = msg.text;
       }
