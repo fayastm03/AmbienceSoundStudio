@@ -146,7 +146,7 @@ test("Assistant Commands - Sleep timer controls", () => {
   assert.equal(cancel?.actions[0]?.type, "timer_cancel");
 });
 
-test("Assistant Commands - Presets, modifiers, reset, undo, surprise, status, help", () => {
+test("Assistant Commands - Presets, modifiers, reset, undo, surprise, status, help, play my usual", () => {
   assert.equal(parseCommand("sleep", mockContext)?.actions[0]?.type, "preset");
   assert.equal(parseCommand("focus", mockContext)?.actions[0]?.type, "preset");
   assert.equal(parseCommand("reading", mockContext)?.actions[0]?.type, "preset");
@@ -180,6 +180,18 @@ test("Assistant Commands - Presets, modifiers, reset, undo, surprise, status, he
 
   const help = parseCommand("help", mockContext);
   assert.equal(help?.actions[0]?.type, "help");
+
+  // Play my usual
+  const usualWithoutHistory = parseCommand("play my usual", mockContext);
+  assert.ok(usualWithoutHistory?.reply.includes("don't have a usual mix yet"));
+
+  const usualWithHistory = parseCommand("play my usual", {
+    ...mockContext,
+    usualLevels: { rain: { channel: 0.7, layers: {} } }
+  });
+  assert.equal(usualWithHistory?.actions[0]?.type, "preset");
+  assert.equal(usualWithHistory?.actions[0]?.name, "My usual");
+  assert.equal(usualWithHistory?.reply, "Playing your usual mix.");
 });
 
 test("Assistant Commands - Saved mix fuzzy matching", () => {

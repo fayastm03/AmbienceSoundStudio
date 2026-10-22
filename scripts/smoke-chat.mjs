@@ -6,7 +6,7 @@ process.env.NODE_ENV = "test";
 import assert from "node:assert/strict";
 import { Readable, Writable } from "node:stream";
 import express from "express";
-import chatRouter from "../server/routes/chat.js";
+import chatRouter, { validateAndCleanResponse } from "../server/routes/chat.js";
 import { sameOrigin } from "../server/middleware/sameOrigin.js";
 import { CRISIS_MESSAGE } from "../public/js/config/safety.js";
 
@@ -113,9 +113,9 @@ expect(200, crisisRes.status, "crisis response status");
 assert.equal(crisisRes.body.safety, true, "crisis safety flag");
 assert.equal(crisisRes.body.reply, CRISIS_MESSAGE, "crisis fixed message");
 
-// 3. Authenticated request with normal message -> 200 with { reply }
+// 3. Authenticated request with normal message -> 200 with strict JSON { reply, mood, mix, changes }
 testUserId = "user-smoke-123";
-console.log("[smoke-chat] 3. Testing authenticated request -> 200 with reply...");
+console.log("[smoke-chat] 3. Testing authenticated request -> 200 with strict JSON...");
 const authRes = await request("/api/chat", {
   method: "POST",
   body: JSON.stringify({
@@ -129,6 +129,10 @@ const authRes = await request("/api/chat", {
 expect(200, authRes.status, "authenticated request");
 assert.ok(typeof authRes.body.reply === "string", "reply should be string");
 assert.ok(authRes.body.reply.length > 0, "reply should not be empty");
+assert.ok(typeof authRes.body.mood === "string", "mood should be string");
+assert.ok(["calm", "focused", "sleepy", "cozy", "stressed", "sad", "happy", "energetic"].includes(authRes.body.mood), "mood must be one of allowed values");
+assert.ok(typeof authRes.body.mix === "object" && authRes.body.mix !== null, "mix should be an object");
+assert.ok(typeof authRes.body.changes === "string", "changes should be string");
 
 // 4. Missing message field -> 400
 console.log("[smoke-chat] 4. Testing missing message -> 400...");
@@ -138,5 +142,82 @@ const missingRes = await request("/api/chat", {
 });
 expect(400, missingRes.status, "missing message");
 assert.equal(missingRes.body.error, "Message is required");
+
+// 5. Relative command with currentMix -> adjusts relative to current mix
+console.log("[smoke-chat] 5. Testing relative command with currentMix...");
+const relativeRes = await request("/api/chat", {
+  method: "POST",
+  body: JSON.stringify({
+    message: "warmer please",
+    currentMix: {
+      fire: 20,
+      crackle: 10,
+    },
+  }),
+});
+expect(200, relativeRes.status, "relative request");
+assert.equal(relativeRes.body.mood, "cozy");
+assert.ok(relativeRes.body.mix.fire > 20, "fire should increase relative to current mix");
+
+// 6. Direct server validation test: clamp values, drop unknown keys, fallback to { reply }
+console.log("[smoke-chat] 6. Testing server validation rules...");
+
+// 6a. Clamping and dropping unknown keys
+const testRawJson = JSON.stringify({
+  reply: "Turned up rain.",
+  mood: "focused",
+  mix: {
+    rain: 150, // should clamp to 100
+    thunder: -20, // should clamp to 0
+    crackle: 45,
+    unknown_instrument: 99, // unknown key should be dropped
+  },
+  changes: "Made it rainier.",
+});
+const validated = validateAndCleanResponse(testRawJson);
+assert.equal(validated.reply, "Turned up rain.");
+assert.equal(validated.mood, "focused");
+assert.equal(validated.mix.rain, 100, "rain should be clamped to 100");
+assert.equal(validated.mix.thunder, 0, "thunder should be clamped to 0");
+assert.equal(validated.mix.crackle, 45);
+assert.equal(validated.mix.unknown_instrument, undefined, "unknown key must be dropped");
+assert.equal(validated.changes, "Made it rainier.");
+
+// 6b. Fallback to { reply only } when JSON is invalid
+const invalidJsonResult = validateAndCleanResponse("I cannot output JSON right now.");
+assert.equal(invalidJsonResult, null, "invalid JSON string should return null to trigger fallback");
+
+// 6c. Fallback to { reply only } when mood is not in allowed list
+const badMoodJson = JSON.stringify({
+  reply: "Here is your sound.",
+  mood: "unsupported_mood",
+  mix: { rain: 50 },
+  changes: "Changed sound",
+});
+const badMoodResult = validateAndCleanResponse(badMoodJson);
+assert.deepEqual(badMoodResult, { reply: "Here is your sound." }, "bad mood falls back to reply only");
+
+// 6d. Fallback to { reply only } when mix is missing or not an object
+const badMixJson = JSON.stringify({
+  reply: "Here is your sound.",
+  mood: "calm",
+  mix: "not an object",
+  changes: "Changed sound",
+});
+const badMixResult = validateAndCleanResponse(badMixJson);
+assert.deepEqual(badMixResult, { reply: "Here is your sound." }, "bad mix falls back to reply only");
+
+// 7. GET /api/chat/history
+console.log("[smoke-chat] 7. Testing GET /api/chat/history...");
+testUserId = null;
+const unauthHistRes = await request("/api/chat/history", { method: "GET" });
+expect(200, unauthHistRes.status, "unauthenticated history status");
+assert.deepEqual(unauthHistRes.body, { messages: [], profile: null }, "unauthenticated returns empty messages and null profile");
+
+testUserId = "user-smoke-123";
+const authHistRes = await request("/api/chat/history", { method: "GET" });
+expect(200, authHistRes.status, "authenticated history status");
+assert.ok(Array.isArray(authHistRes.body.messages), "history messages should be an array");
+assert.ok("profile" in authHistRes.body, "history response should contain profile key");
 
 console.log("[smoke-chat] All smoke tests passed successfully!");

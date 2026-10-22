@@ -22,7 +22,7 @@ const isProduction = env.nodeEnv === "production";
 const SESSION_DAYS = 14;
 
 const app = express();
-if (isProduction) app.set("trust proxy", 1);
+if (isProduction || Boolean(process.env.VERCEL)) app.set("trust proxy", 1);
 
 app.use(
   helmet({
@@ -45,6 +45,17 @@ app.use(
 app.use(express.static(publicDir));
 
 app.use(express.json({ limit: "32kb" }));
+
+// Ensure database connection is initialized for API calls (especially on serverless cold starts)
+app.use("/api", async (request, response, next) => {
+  if (!databaseReady() && env.mongoUri) {
+    try {
+      await connectDatabase();
+    } catch {}
+  }
+  next();
+});
+
 app.use("/api", apiRateLimit);
 app.use("/api", sameOrigin);
 
@@ -116,40 +127,46 @@ Promise.resolve()
   .then(() => connectDatabase())
   .catch((error) => console.error(`[db] connection attempt failed: ${error?.name ?? "Error"}`));
 
-const server = app.listen(env.port, () => {
-  console.log(`[server] listening on http://localhost:${env.port}`);
-});
-
-server.on("error", (error) => {
-  if (error.code === "EADDRINUSE") {
-    console.error(`[server] port ${env.port} is already in use. Stop the other server (Ctrl+C in its terminal tab) and try again.`);
-  } else {
-    console.error(`[server] ${error.name}: ${error.message}`);
-  }
-  process.exit(1);
-});
-
-let shuttingDown = false;
-function gracefulShutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  console.log(`[server] received ${signal}, shutting down`);
-  server.close(async () => {
-    try {
-      await mongoose.disconnect();
-    } catch {}
-    process.exit(0);
+if (!process.env.VERCEL) {
+  const server = app.listen(env.port, () => {
+    console.log(`[server] listening on http://localhost:${env.port}`);
   });
-  server.closeAllConnections?.();
-  setTimeout(() => process.exit(1), 5000).unref();
+
+  server.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(`[server] port ${env.port} is already in use. Stop the other server (Ctrl+C in its terminal tab) and try again.`);
+    } else {
+      console.error(`[server] ${error.name}: ${error.message}`);
+    }
+    process.exit(1);
+  });
+
+  let shuttingDown = false;
+  function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[server] received ${signal}, shutting down`);
+    server.close(async () => {
+      try {
+        await mongoose.disconnect();
+      } catch {}
+      process.exit(0);
+    });
+    server.closeAllConnections?.();
+    setTimeout(() => process.exit(1), 5000).unref();
+  }
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("unhandledRejection", (reason) => {
   console.error(`[server] unhandled rejection: ${reason?.name ?? "Error"}`);
 });
 process.on("uncaughtException", (error) => {
   console.error(`[server] uncaught exception: ${error.name}`);
-  gracefulShutdown("uncaughtException");
+  if (!process.env.VERCEL) process.exit(1);
 });
+
+export default app;
+export { app };
