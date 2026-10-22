@@ -1,6 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
 import { isCrisisText, CRISIS_MESSAGE } from "../../public/js/config/safety.js";
+import {
+  soundscapes,
+  CHANNELS,
+  LAYERS,
+  ALL_VALID_MIX_KEYS,
+  CHANNEL_BY_LAYER,
+  normalizeMixKey,
+} from "../../public/js/config/soundscapes.js";
 import { callGroq } from "../services/groq.js";
 import { isDatabaseConnected } from "../config/db.js";
 import { ChatMessage } from "../models/ChatMessage.js";
@@ -47,48 +55,6 @@ const MOOD_SYNONYMS = {
   anxious: "stressed",
   overwhelmed: "stressed",
 };
-
-const MIX_KEY_ALIASES = {
-  ocean: "waves",
-  "ocean-waves": "waves",
-  wave: "waves",
-  bird: "birds",
-  birdsong: "birds",
-  creek: "stream",
-  river: "stream",
-  water: "stream",
-  cicadas: "crickets",
-  cicada: "crickets",
-  cricket: "crickets",
-  breeze: "wind",
-  fireplace: "fire",
-  campfire: "fire",
-  coffeeshop: "coffee",
-  cafe: "coffee",
-};
-
-const ALLOWED_MIX_KEYS = [
-  "rain",
-  "cafe",
-  "coffee",
-  "fire",
-  "nature",
-  "heavy-rain",
-  "light-rain",
-  "window",
-  "roof",
-  "thunder",
-  "chatter",
-  "espresso",
-  "crackle",
-  "firewood",
-  "embers",
-  "wind",
-  "stream",
-  "birds",
-  "crickets",
-  "waves",
-];
 
 const chatSchema = z.object({
   message: z.string().trim().min(1, "Message is required").max(500),
@@ -141,7 +107,110 @@ CRITICAL APP-ONLY SCOPE RULES:
 
 Output valid JSON only with keys: "reply", "mood", "mix", "changes".`;
 
-export function validateAndCleanResponse(rawText) {
+export function computeMixDiff(currentMix = {}, newMix = {}) {
+  const diffs = [];
+  const checkedKeys = new Set();
+  const allKeys = [...Object.keys(currentMix), ...Object.keys(newMix)];
+
+  for (const rawKey of allKeys) {
+    const key = normalizeMixKey(rawKey) || rawKey;
+    if (checkedKeys.has(key)) continue;
+    checkedKeys.add(key);
+
+    if (!ALL_VALID_MIX_KEYS.includes(key) && key !== "cafe") continue;
+
+    const oldRaw = currentMix[rawKey] !== undefined ? currentMix[rawKey] : currentMix[key];
+    const oldVal = oldRaw !== undefined && Number.isFinite(Number(oldRaw)) ? Number(oldRaw) : 0;
+    const newRaw = newMix[key] !== undefined ? newMix[key] : (newMix[rawKey] !== undefined ? newMix[rawKey] : oldVal);
+    const newVal = newRaw !== undefined && Number.isFinite(Number(newRaw)) ? Number(newRaw) : oldVal;
+
+    if (Math.abs(newVal - oldVal) >= 2) {
+      diffs.push({
+        key,
+        oldVal: Math.round(oldVal),
+        newVal: Math.round(newVal),
+        delta: Math.round(newVal - oldVal),
+      });
+    }
+  }
+  return diffs;
+}
+
+export function buildChangesSummary(diffs) {
+  if (!diffs || diffs.length === 0) return "No sound changes.";
+  return diffs
+    .map((d) => {
+      const sign = d.delta > 0 ? "+" : "";
+      return `${d.key}: ${d.newVal}% (${sign}${d.delta}%)`;
+    })
+    .join(", ");
+}
+
+export function buildHonestReply(diffs, originalReply = "") {
+  if (!diffs || diffs.length === 0) {
+    return "I couldn't change anything for that, try asking for a specific sound.";
+  }
+  const parts = diffs.map((d) => {
+    const action = d.delta > 0 ? "raised" : "lowered";
+    return `${action} ${d.key} to ${d.newVal}%`;
+  });
+  return `Adjusted your mix: ${parts.join(", ")}.`;
+}
+
+export function applyRelativeFallback(message, currentMix = {}) {
+  const text = (message || "").toLowerCase();
+  const resMix = {};
+  let applied = false;
+
+  if (/(?:more\s+natural|natural\s+vibe|more\s+nature|nature\s+vibe)/i.test(text)) {
+    const curNature = Number(currentMix.nature ?? 0);
+    const curWind = Number(currentMix.wind ?? 0);
+    const curStream = Number(currentMix.stream ?? 0);
+    const curBirds = Number(currentMix.birds ?? 0);
+    resMix.nature = Math.min(100, Math.max(50, curNature + 25));
+    resMix.wind = Math.min(100, curWind + 25);
+    resMix.stream = Math.min(100, curStream + 20);
+    resMix.birds = Math.min(100, curBirds + 20);
+    applied = true;
+  } else if (/(?:less\s+crowded|quieter\s+cafe|less\s+noise|quiet\s+cafe)/i.test(text)) {
+    const curChatter = Number(currentMix.chatter ?? 50);
+    const curCoffee = Number(currentMix.coffee ?? currentMix.cafe ?? 40);
+    resMix.chatter = Math.max(0, curChatter - 30);
+    resMix.coffee = Math.max(0, curCoffee - 20);
+    resMix.cafe = resMix.coffee;
+    applied = true;
+  } else if (/(?:warmer|cozier|more\s+fire|warmer\s+vibe)/i.test(text)) {
+    const curFire = Number(currentMix.fire ?? 30);
+    const curCrackle = Number(currentMix.crackle ?? 20);
+    const curEmbers = Number(currentMix.embers ?? 20);
+    resMix.fire = Math.min(100, curFire + 25);
+    resMix.crackle = Math.min(100, curCrackle + 25);
+    resMix.embers = Math.min(100, curEmbers + 20);
+    applied = true;
+  } else if (/(?:forest\s+at\s+night|take\s+me\s+to\s+a\s+forest\s+at\s+night)/i.test(text)) {
+    resMix.nature = 65;
+    resMix.crickets = 45;
+    resMix.wind = 35;
+    resMix.stream = 25;
+    resMix.rain = 0;
+    resMix.coffee = 0;
+    resMix.cafe = 0;
+    resMix.fire = 0;
+    applied = true;
+  } else if (/(?:turn\s+off\s+(?:the\s+)?rain|mute\s+(?:the\s+)?rain|stop\s+(?:the\s+)?rain)/i.test(text)) {
+    resMix.rain = 0;
+    resMix["heavy-rain"] = 0;
+    resMix["light-rain"] = 0;
+    resMix.window = 0;
+    resMix.roof = 0;
+    resMix.thunder = 0;
+    applied = true;
+  }
+
+  return applied ? resMix : null;
+}
+
+export function validateAndCleanResponse(rawText, currentMix = {}) {
   if (!rawText || typeof rawText !== "string") return null;
   let parsed;
   try {
@@ -176,15 +245,21 @@ export function validateAndCleanResponse(rawText) {
   // Validate and clamp mix values (0-100), map aliases, drop unknown keys
   const clampedMix = {};
   for (const [key, val] of Object.entries(parsed.mix)) {
-    let normalizedKey = key.toLowerCase().trim();
-    if (MIX_KEY_ALIASES[normalizedKey]) {
-      normalizedKey = MIX_KEY_ALIASES[normalizedKey];
-    }
-    if (ALLOWED_MIX_KEYS.includes(normalizedKey)) {
+    const normalizedKey = normalizeMixKey(key);
+    if (normalizedKey && ALL_VALID_MIX_KEYS.includes(normalizedKey)) {
       const num = Number(val);
       if (Number.isFinite(num)) {
         clampedMix[normalizedKey] = Math.max(0, Math.min(100, Math.round(num)));
       }
+    }
+  }
+
+  // Ensure parent channel is audible if a layer was set > 0
+  for (const [key, val] of Object.entries(clampedMix)) {
+    const parentChannel = CHANNEL_BY_LAYER[key];
+    if (parentChannel && val > 0 && clampedMix[parentChannel] === undefined) {
+      const curParent = Number(currentMix[parentChannel] || 0);
+      clampedMix[parentChannel] = Math.max(curParent, Math.max(40, val));
     }
   }
 
@@ -225,8 +300,9 @@ router.post("/", async (request, response) => {
   let mixContext = "";
   if (currentMix && typeof currentMix === "object" && Object.keys(currentMix).length > 0) {
     const entries = Object.entries(currentMix)
-      .filter(([k, v]) => ALLOWED_MIX_KEYS.includes(k.toLowerCase()) && Number.isFinite(Number(v)))
-      .map(([k, v]) => `${k.toLowerCase()}:${Math.round(Number(v))}`);
+      .map(([k, v]) => [normalizeMixKey(k) || k.toLowerCase(), v])
+      .filter(([k, v]) => ALL_VALID_MIX_KEYS.includes(k) && Number.isFinite(Number(v)))
+      .map(([k, v]) => `${k}:${Math.round(Number(v))}`);
     if (entries.length > 0) {
       mixContext = `\n(Current mix: ${entries.join(", ")})`;
     }
@@ -264,10 +340,50 @@ router.post("/", async (request, response) => {
     return response.status(503).json({ error: "service_unavailable" });
   }
 
-  const validated = validateAndCleanResponse(result.text);
+  const validated = validateAndCleanResponse(result.text, currentMix);
   const responseData = validated || {
     reply: result.reply || result.text || "I'm here to help with your ambient soundscape.",
+    mix: {},
+    changes: "",
   };
+
+  // Compute real diff between current mix and proposed new mix
+  let diffs = computeMixDiff(currentMix, responseData.mix || {});
+
+  // If diff is empty, check for deterministic relative fallback
+  if (diffs.length === 0) {
+    const relativeFallback = applyRelativeFallback(message, currentMix);
+    if (relativeFallback) {
+      responseData.mix = relativeFallback;
+      diffs = computeMixDiff(currentMix, responseData.mix);
+      if (!responseData.mood) responseData.mood = "calm";
+    }
+  }
+
+  // Check if user requested sound changes or if model claimed sound changes
+  const isOffTopicOrInfo =
+    (typeof responseData.changes === "string" && /no sound changes|provided app|explained|listed/i.test(responseData.changes)) ||
+    /(?:specifically the assistant for Ambient Sound Studio|Ambient Sound Studio is an ambient soundscape mixer)/i.test(responseData.reply || "");
+
+  const claimsChange =
+    !isOffTopicOrInfo &&
+    (/(?:added|increased|raised|lowered|boosted|turned up|turned down|playing only|enriched|surrounded you)/i.test(responseData.reply || "") ||
+      (typeof responseData.changes === "string" && responseData.changes.length > 0 && !responseData.changes.includes("No sound changes")));
+
+  if (diffs.length === 0) {
+    if (claimsChange) {
+      // Model claimed changes, but nothing actually changed: give honest message
+      responseData.reply = "I couldn't change anything for that, try asking for a specific sound.";
+      responseData.changes = "No sound changes.";
+      responseData.mix = {};
+    }
+  } else {
+    // There ARE real changes: ensure changes summary is strictly computed from diff
+    responseData.changes = buildChangesSummary(diffs);
+    if (!responseData.reply || claimsChange) {
+      responseData.reply = buildHonestReply(diffs, responseData.reply);
+    }
+  }
 
   // In MongoDB, store per user: chat messages (role, text, time) and a mood entry (mood, mix, time)
   // after each successful reply. Do not store crisis messages as moods.

@@ -242,15 +242,55 @@ function generateMockChat(userText, currentMix = {}) {
     };
   }
 
-  if (/(?:nature|forest|wind|stream|birds|waves|crickets)/i.test(text)) {
+  if (/(?:turn\s+off\s+(?:the\s+)?rain|mute\s+(?:the\s+)?rain|stop\s+(?:the\s+)?rain)/i.test(text)) {
+    return {
+      reply: "Muted the rain channel and all rain layers.",
+      mood: "calm",
+      mix: {
+        rain: 0,
+        "heavy-rain": 0,
+        "light-rain": 0,
+        window: 0,
+        roof: 0,
+        thunder: 0,
+      },
+      changes: "Turned off rain channel.",
+    };
+  }
+
+  if (/(?:forest\s+at\s+night|take\s+me\s+to\s+a\s+forest\s+at\s+night)/i.test(text)) {
+    return {
+      reply: "Transported you to a quiet forest at night with gentle wind and crickets.",
+      mood: "calm",
+      mix: {
+        nature: 65,
+        crickets: 45,
+        wind: 35,
+        stream: 25,
+        rain: 0,
+        cafe: 0,
+        fire: 0,
+      },
+      changes: "Set night forest ambience with crickets and wind.",
+    };
+  }
+
+  if (/(?:more\s+natural|natural\s+vibe|natural|nature|forest|wind|stream|birds|waves|crickets)/i.test(text)) {
+    const curNature = Number(currentMix.nature ?? 0);
+    const newNature = Math.min(100, Math.max(50, curNature + 25));
+    const curWind = Number(currentMix.wind ?? 0);
+    const curStream = Number(currentMix.stream ?? 0);
+    const curBirds = Number(currentMix.birds ?? 0);
+    const curCrickets = Number(currentMix.crickets ?? 0);
     return {
       reply: "Surrounded you with forest breeze, flowing water, and birdsong.",
       mood: "calm",
       mix: {
-        nature: 60,
-        wind: 40,
-        stream: 35,
-        birds: 30,
+        nature: newNature,
+        wind: Math.min(100, curWind + 30),
+        stream: Math.min(100, curStream + 25),
+        birds: Math.min(100, curBirds + 20),
+        crickets: curCrickets > 0 ? curCrickets : 20,
       },
       changes: "Increased nature volume with wind and running stream.",
     };

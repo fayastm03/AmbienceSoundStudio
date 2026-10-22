@@ -328,22 +328,32 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       if (chVal === undefined && config.id === "coffee") {
         chVal = mix.cafe;
       }
-      const channelVol = chVal !== undefined
+      let channelVol = chVal !== undefined
         ? Math.max(0, Math.min(1, Number(chVal) / 100))
         : isExclusive
           ? 0
           : (state.channels[config.id]?.volume ?? 0);
 
       const layers = {};
+      let maxLayerVol = 0;
       config.layers.forEach((layer) => {
         if (mix[layer.id] !== undefined) {
-          layers[layer.id] = Math.max(0, Math.min(1, Number(mix[layer.id]) / 100));
+          const lVal = Math.max(0, Math.min(1, Number(mix[layer.id]) / 100));
+          layers[layer.id] = lVal;
+          if (lVal > maxLayerVol) maxLayerVol = lVal;
         } else {
           layers[layer.id] = isExclusive
             ? 0
             : (state.channels[config.id]?.layers?.[layer.id] ?? 0);
+          if (layers[layer.id] > maxLayerVol) maxLayerVol = layers[layer.id];
         }
       });
+
+      // ROOT CAUSE FIX: If layers in this channel are audible (> 0) and channel was not explicitly set to 0,
+      // the channel bus must be audible (at least 0.40 or maxLayerVol) so the layer can be heard!
+      if (maxLayerVol > 0 && channelVol < 0.25 && chVal === undefined) {
+        channelVol = Math.max(0.40, maxLayerVol);
+      }
 
       levels[config.id] = {
         channel: channelVol,
@@ -351,6 +361,34 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       };
     });
     return levels;
+  }
+
+  function computeClientLevelsDiff(prevChannels, targetLevels) {
+    if (!prevChannels || !targetLevels) return [];
+    const diffs = [];
+    soundscapes.forEach((config) => {
+      const prevCh = prevChannels[config.id]?.volume ?? 0;
+      const targetCh = targetLevels[config.id]?.channel ?? prevCh;
+      if (Math.abs(targetCh - prevCh) >= 0.02) {
+        diffs.push({
+          label: config.name,
+          to: Math.round(targetCh * 100),
+          delta: Math.round((targetCh - prevCh) * 100),
+        });
+      }
+      config.layers.forEach((layer) => {
+        const prevL = prevChannels[config.id]?.layers?.[layer.id] ?? 0;
+        const targetL = targetLevels[config.id]?.layers?.[layer.id] ?? prevL;
+        if (Math.abs(targetL - prevL) >= 0.02) {
+          diffs.push({
+            label: layer.label,
+            to: Math.round(targetL * 100),
+            delta: Math.round((targetL - prevL) * 100),
+          });
+        }
+      });
+    });
+    return diffs;
   }
 
   async function handleUserMessage(userText) {
@@ -446,11 +484,22 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
           const isExclusive = /(?:nothing\s+else|only|just|solo|exclusive)/i.test(clean);
           const targetLevels = mixToLevels(aiResult.mix, { isExclusive });
           if (targetLevels) {
-            await executor.executeActions([
-              { type: "preset", name: aiResult.mood || "AI Mix", levels: targetLevels }
-            ], { fromChat: true });
-            updateUndoButton();
-            mixChip = formatMixChip(aiResult.mix);
+            const diffs = computeClientLevelsDiff(state.channels, targetLevels);
+            if (diffs.length > 0) {
+              await executor.executeActions([
+                { type: "preset", name: aiResult.mood || "AI Mix", levels: targetLevels }
+              ], { fromChat: true });
+              updateUndoButton();
+              mixChip = diffs.slice(0, 4).map((d) => `${d.label} ${d.to}%`).join(", ");
+            } else {
+              // No actual changes occurred
+              const claimsChange = /(?:added|increased|raised|lowered|boosted|turned|playing|enriched|surrounded|blended|set)/i.test(finalReply || "") ||
+                (aiResult.changes && !aiResult.changes.includes("No sound changes"));
+              if (claimsChange) {
+                finalReply = "I couldn't change anything for that, try asking for a specific sound.";
+                mixChip = null;
+              }
+            }
           }
         } else {
           // Backup plan: If AI produced no mix (or if auth required, offline, or busy), lightly match the chat

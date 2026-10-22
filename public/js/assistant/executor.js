@@ -2,6 +2,7 @@
 // Applies mixer changes smoothly, maintains an Undo stack, and manages the sleep timer.
 
 import { saveState, setMaster, setMuted, resetLayers } from "../state/store.js";
+import { DEFAULT_CHANNEL_VOLUMES, CHANNELS, LAYERS } from "../config/soundscapes.js";
 
 const MAX_UNDO = 10;
 const ANIMATION_DURATION_MS = 2000;
@@ -46,6 +47,20 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
 
   // Smoothly transition soundscape levels over ~1.5s
   function animateLevels(targetLevels) {
+    if (targetLevels && typeof targetLevels === "object") {
+      Object.keys(targetLevels).forEach((k) => {
+        if (!CHANNELS.includes(k)) {
+          console.warn("[executor] Unknown mixer key ignored:", k);
+        } else if (targetLevels[k]?.layers && typeof targetLevels[k].layers === "object") {
+          Object.keys(targetLevels[k].layers).forEach((lk) => {
+            if (!LAYERS.includes(lk)) {
+              console.warn("[executor] Unknown mixer key ignored:", lk);
+            }
+          });
+        }
+      });
+    }
+
     const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
     if (reduceMotion) {
@@ -476,7 +491,7 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
               if (engine.context) engine.setLayer(config.id, layer.id, state.channels[config.id].layers[layer.id]);
             });
             // Reset channel volume to safe default
-            state.channels[config.id].volume = config.id === "rain" ? 0.64 : config.id === "coffee" ? 0.36 : 0.28;
+            state.channels[config.id].volume = DEFAULT_CHANNEL_VOLUMES[config.id] ?? 0.35;
             if (engine.context) engine.setChannel(config.id, state.channels[config.id].volume);
           });
           if (typeof onNowPlayingChange === "function") onNowPlayingChange("");

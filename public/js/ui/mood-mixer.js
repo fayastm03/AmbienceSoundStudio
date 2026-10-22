@@ -58,6 +58,22 @@ function sanitizeMix(candidate, configs) {
   };
 }
 
+function hasMixDiff(candidate, configs, state) {
+  if (!candidate?.levels || !configs || !state?.channels) return false;
+  for (const config of configs) {
+    const target = candidate.levels[config.id];
+    if (!target) continue;
+    const curCh = state.channels[config.id]?.volume ?? 0;
+    if (Math.abs(target.channel - curCh) >= 0.02) return true;
+    for (const layer of config.layers) {
+      const curL = state.channels[config.id]?.layers?.[layer.id] ?? 0;
+      const targetL = target.layers?.[layer.id] ?? curL;
+      if (Math.abs(targetL - curL) >= 0.02) return true;
+    }
+  }
+  return false;
+}
+
 function animateMix(result, configs, state, engine, render) {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduceMotion) {
@@ -185,7 +201,13 @@ export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
       button.textContent = "Create mix";
       button.classList.remove("btn-loading");
     }
-    explanation.textContent = result.explanation;
+    const changed = hasMixDiff(result, configs, state);
+    if (!changed) {
+      explanation.textContent = "Mix unchanged — already at requested levels.";
+      status.textContent = "Mix unchanged";
+    } else {
+      explanation.textContent = result.explanation;
+    }
     window.dispatchEvent(new CustomEvent("mix:ai-applied", { detail: { name: result.name } }));
     if (moodSaveButton) {
       moodSaveButton.hidden = false;
