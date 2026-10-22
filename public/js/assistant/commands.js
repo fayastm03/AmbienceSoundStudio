@@ -221,6 +221,247 @@ export function getPresetMix(mood) {
   };
 }
 
+// Parse compound sound assignments with multiple percentages, e.g. "heavy rain 20% rest all 0%" or "rain 50 and fire 30"
+export function parseCompoundMix(rawText, ctx = {}) {
+  if (!rawText || typeof rawText !== "string") return null;
+  const text = rawText.toLowerCase().replace(/[.,;\r\n]/g, " ");
+
+  const restZero = /(?:rest(?:\s+all)?|others?|everything\s+else|all\s+(?:other|else))\s*(?:all\s*)?(?:at\s+|to\s+|is\s+|be\s+)?(?:0\s*%?|off|silent|zero|mute)/i.test(text)
+    || /(?:nothing\s+else)/i.test(text);
+
+  const cleaned = text.replace(/(?:rest(?:\s+all)?|others?|everything\s+else|all\s+(?:other|else))\s*(?:all\s*)?(?:at\s+|to\s+|is\s+|be\s+)?(?:0\s*%?|off|silent|zero|mute)/gi, " ");
+  const sorted = [...TARGET_MAP].sort((a, b) => b.keywords[0].length - a.keywords[0].length);
+  const assignments = [];
+  const usedRanges = [];
+
+  for (const entry of sorted) {
+    for (const kw of entry.keywords) {
+      const regex = new RegExp(`\\b${kw}\\b(?:\\s*(?:to|at|is|volume|level)?\\s*(\\d{1,3})%?|\\s*(?:up|more)|\\s*(?:down|less)|\\s*(?:off|mute|silent))?`, "gi");
+      let match;
+      while ((match = regex.exec(cleaned)) !== null) {
+        const matchIdx = match.index;
+        const matchEnd = matchIdx + match[0].length;
+        if (usedRanges.some((r) => !(matchEnd <= r.start || matchIdx >= r.end))) continue;
+        usedRanges.push({ start: matchIdx, end: matchEnd });
+
+        let val = null;
+        let delta = null;
+        if (match[1] !== undefined) {
+          val = Math.max(0, Math.min(100, parseInt(match[1], 10))) / 100;
+        } else if (/\b(off|mute|silent)\b/i.test(match[0])) {
+          val = 0;
+        } else if (/\b(up|more)\b/i.test(match[0])) {
+          delta = 0.20;
+        } else if (/\b(down|less)\b/i.test(match[0])) {
+          delta = -0.20;
+        } else {
+          const after = cleaned.slice(matchEnd).trim();
+          const numMatch = after.match(/^(?:(?:to|at|is|volume|level)\s+)?(\d{1,3})%?/i);
+          if (numMatch) {
+            val = Math.max(0, Math.min(100, parseInt(numMatch[1], 10))) / 100;
+            usedRanges.push({ start: matchEnd, end: matchEnd + numMatch[0].length });
+          }
+        }
+        assignments.push({ entry, val, delta });
+      }
+    }
+  }
+
+  if (assignments.length === 0) return null;
+
+  if (restZero) {
+    const levels = {};
+    soundscapes.forEach((cfg) => {
+      const layers = {};
+      cfg.layers.forEach((l) => { layers[l.id] = 0; });
+      levels[cfg.id] = { channel: 0, layers };
+    });
+
+    const parts = [];
+    assignments.forEach(({ entry, val }) => {
+      if (entry.type === "channel") {
+        const finalVal = val !== null ? val : 0.65;
+        levels[entry.channelId].channel = finalVal;
+        parts.push(`${entry.label} to ${Math.round(finalVal * 100)}%`);
+      } else {
+        const finalVal = val !== null ? val : 0.70;
+        const channelVal = val !== null ? Math.max(levels[entry.channelId].channel, Math.max(0.40, val)) : 0.65;
+        levels[entry.channelId].channel = channelVal;
+        levels[entry.channelId].layers[entry.layerId] = finalVal;
+        parts.push(`${entry.label} to ${Math.round(finalVal * 100)}%`);
+      }
+    });
+
+    return {
+      actions: [
+        { type: "preset", name: "Custom Mix", levels },
+        { type: "play" }
+      ],
+      reply: `Set ${parts.join(", ")}, with all other sounds muted.`
+    };
+  }
+
+  // Compound assignments: must have at least one numeric or relative assignment
+  const hasValues = assignments.some((a) => a.val !== null || a.delta !== null);
+  if (!hasValues) {
+    return null;
+  }
+
+  // If only 1 assignment without conversational words or multiple values, let Rule 13 handle standard single-target percentage commands
+  if (assignments.length === 1 && !/\b(?:and|need|give me|want|also)\b/i.test(rawText)) {
+    return null;
+  }
+
+  if (assignments.length >= 2 || (assignments.length === 1 && assignments[0].val !== null)) {
+    const actions = [];
+    const parts = [];
+    assignments.forEach(({ entry, val, delta }) => {
+      if (val !== null) {
+        actions.push({ type: "target_set", target: entry, value: val });
+        if (entry.type === "layer" && val > 0) {
+          actions.push({ type: "target_set", target: { type: "channel", channelId: entry.channelId, label: entry.channelId }, value: Math.max(0.50, val) });
+        }
+        parts.push(`${entry.label} to ${Math.round(val * 100)}%`);
+      } else if (delta !== null) {
+        actions.push({ type: "target_delta", target: entry, delta });
+        parts.push(`${delta > 0 ? "turned up" : "turned down"} ${entry.label}`);
+      }
+    });
+    actions.push({ type: "play" });
+    return {
+      actions,
+      reply: `Set ${parts.join(" and ")}.`
+    };
+  }
+
+  return null;
+}
+
+// Backup plan: Lightly matches sound and mood keywords when AI is unavailable or produces no mix
+export function fallbackMatchMix(rawText) {
+  if (!rawText || typeof rawText !== "string") return null;
+  const text = rawText.toLowerCase();
+
+  // Off-topic check (never invent sounds for math/coding/general questions)
+  if (/(?:factorial|\bcode\b|python|javascript|java|c\+\+|html|css|sql|math|\d+\s*[\+\-\*\/]\s*\d+|capital\s+of|recipe|who\s+is|who\s+was|who\s+won|joke|calculate|derivative|integral|equation|weather|president|population|translate|poem|flight|hotel|ticket)/i.test(text)) {
+    return null;
+  }
+
+  // First, see if compound parser can handle it
+  const compound = parseCompoundMix(rawText);
+  if (compound) return compound;
+
+  // Next, lightly detect sound mentions
+  const mentions = {
+    rain: /(?:rain|storm|drizzle|downpour|thunder)/i.test(text),
+    coffee: /(?:coffee|cafe|chatter|espresso|latte|barista)/i.test(text),
+    fire: /(?:fire|fireplace|crackle|ember|wood|hearth|campfire)/i.test(text),
+    nature: /(?:nature|forest|wind|stream|river|creek|bird|cricket|wave|ocean|sea|surf)/i.test(text),
+  };
+
+  const layerMentions = {
+    thunder: /(?:thunder|lightning)/i.test(text),
+    heavyRain: /(?:heavy\s*rain|downpour|storm)/i.test(text),
+    crackle: /(?:crackle|crackling)/i.test(text),
+    espresso: /(?:espresso|coffee\s*machine)/i.test(text),
+    chatter: /(?:chatter|crowd|voices)/i.test(text),
+    waves: /(?:wave|ocean|sea|surf)/i.test(text),
+    birds: /(?:bird|chirp)/i.test(text),
+    stream: /(?:stream|creek|river|water)/i.test(text),
+    wind: /(?:wind|breeze)/i.test(text),
+  };
+
+  const hasAnySound = Object.values(mentions).some(Boolean);
+
+  // Lightly detect mood mentions
+  const isSleep = /(?:sleep|sleepy|night|bed|insomnia|rest)/i.test(text);
+  const isFocus = /(?:focus|study|work|reading|concentrat|code|write)/i.test(text);
+  const isCozy = /(?:cozy|cosy|warm|autumn|winter|snuggle)/i.test(text);
+  const isCalm = /(?:calm|relax|peace|zen|meditat|chill|sooth)/i.test(text);
+
+  if (!hasAnySound && !isSleep && !isFocus && !isCozy && !isCalm) {
+    return null;
+  }
+
+  const levels = {};
+  soundscapes.forEach((cfg) => {
+    const layers = {};
+    cfg.layers.forEach((l) => { layers[l.id] = 0; });
+    levels[cfg.id] = { channel: 0, layers };
+  });
+
+  const activeNames = [];
+
+  if (hasAnySound) {
+    if (mentions.rain) {
+      levels.rain.channel = 0.55;
+      levels.rain.layers["light-rain"] = 0.35;
+      if (layerMentions.heavyRain) levels.rain.layers["heavy-rain"] = 0.50;
+      if (layerMentions.thunder) levels.rain.layers["thunder"] = 0.35;
+      activeNames.push(layerMentions.heavyRain ? "Heavy rain" : "Rain");
+    }
+    if (mentions.coffee) {
+      levels.coffee.channel = 0.50;
+      levels.coffee.layers.chatter = layerMentions.chatter ? 0.50 : 0.30;
+      levels.coffee.layers.espresso = layerMentions.espresso ? 0.35 : 0.15;
+      activeNames.push("Coffee Shop");
+    }
+    if (mentions.fire) {
+      levels.fire.channel = 0.55;
+      levels.fire.layers.crackle = layerMentions.crackle ? 0.55 : 0.40;
+      levels.fire.layers.firewood = 0.30;
+      levels.fire.layers.embers = 0.25;
+      activeNames.push("Fireplace");
+    }
+    if (mentions.nature) {
+      levels.nature.channel = 0.60;
+      if (layerMentions.waves) { levels.nature.layers.waves = 0.65; activeNames.push("Ocean waves"); }
+      if (layerMentions.birds) { levels.nature.layers.birds = 0.40; activeNames.push("Birds"); }
+      if (layerMentions.stream) { levels.nature.layers.stream = 0.45; activeNames.push("Stream"); }
+      if (layerMentions.wind) { levels.nature.layers.wind = 0.40; activeNames.push("Wind"); }
+      if (!layerMentions.waves && !layerMentions.birds && !layerMentions.stream && !layerMentions.wind) {
+        levels.nature.layers.wind = 0.35;
+        levels.nature.layers.birds = 0.30;
+        activeNames.push("Nature");
+      }
+    }
+  } else {
+    if (isSleep) {
+      levels.rain.channel = 0.40;
+      levels.rain.layers["light-rain"] = 0.30;
+      levels.fire.channel = 0.25;
+      levels.fire.layers.embers = 0.30;
+      activeNames.push("Soft rain and embers for sleep");
+    } else if (isFocus) {
+      levels.coffee.channel = 0.45;
+      levels.coffee.layers.chatter = 0.30;
+      levels.rain.channel = 0.35;
+      levels.rain.layers.window = 0.35;
+      activeNames.push("Cafe and window rain for focus");
+    } else if (isCozy) {
+      levels.fire.channel = 0.60;
+      levels.fire.layers.crackle = 0.50;
+      levels.fire.layers.embers = 0.35;
+      levels.rain.channel = 0.30;
+      levels.rain.layers["light-rain"] = 0.25;
+      activeNames.push("Cozy fireplace and gentle rain");
+    } else if (isCalm) {
+      levels.nature.channel = 0.55;
+      levels.nature.layers.waves = 0.60;
+      levels.nature.layers.wind = 0.30;
+      activeNames.push("Calm ocean waves and breeze");
+    }
+  }
+
+  return {
+    actions: [
+      { type: "preset", name: "Custom Ambience", levels },
+      { type: "play" }
+    ],
+    reply: `I adjusted your soundscape to feature ${activeNames.join(", ")}.`
+  };
+}
+
 // Parse user text into executable actions and conversational response
 export function parseCommand(rawText, ctx = {}) {
   if (!rawText || typeof rawText !== "string") return null;
@@ -540,6 +781,12 @@ export function parseCommand(rawText, ctx = {}) {
     };
   }
 
+  // 9a. Compound / Multi-sound assignments: e.g. "i need heavy rain 20% rest all 0%" or "rain 50 and fire 30"
+  const compoundMix = parseCompoundMix(rawText || text, ctx);
+  if (compoundMix) {
+    return compoundMix;
+  }
+
   // 9b. Exclusive / Solo sound: "ocean waves, nothing else", "just rain", "only fireplace", "ocean waves only", "solo coffee"
   let exclusiveTarget = null;
   const exclMatch = text.match(/^(.+?)\s*(?:,\s*|\s+)(?:nothing\s+else|and\s+nothing\s+else|nothing\s+more)$/i)
@@ -692,7 +939,7 @@ export function parseCommand(rawText, ctx = {}) {
   if (setTargetMatch) {
     const targetPart = setTargetMatch[1];
     const pct = parseInt(setTargetMatch[2], 10);
-    if (!Number.isNaN(pct) && pct >= 0 && pct <= 100) {
+    if (!Number.isNaN(pct) && pct >= 0 && pct <= 100 && !/\d/.test(targetPart) && !/(?:and|rest|other|,)/i.test(targetPart)) {
       const target = matchTarget(targetPart);
       if (target) {
         return {

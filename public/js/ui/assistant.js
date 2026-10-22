@@ -2,7 +2,7 @@
 // Non-modal floating chat panel on desktop, responsive bottom sheet on mobile.
 
 import { registerOverlay, openOverlay, closeOverlay, isOverlayOpen } from "./overlay.js";
-import { parseCommand } from "../assistant/commands.js";
+import { parseCommand, fallbackMatchMix } from "../assistant/commands.js";
 import { createAssistantExecutor } from "../assistant/executor.js";
 import { askAssistant, getChatHistory, recordLocalChat } from "../assistant/ai-client.js";
 import { isCrisisText, CRISIS_MESSAGE, HELPLINE_URL, HELPLINE_LABEL } from "../config/safety.js";
@@ -439,6 +439,8 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         appendCrisisBubble();
       } else {
         let mixChip = null;
+        let finalReply = aiResult.reply;
+
         // If AI returned mix adjustments, apply them smoothly over 2s to sliders and sound
         if (aiResult.mix && typeof aiResult.mix === "object" && Object.keys(aiResult.mix).length > 0) {
           const isExclusive = /(?:nothing\s+else|only|just|solo|exclusive)/i.test(clean);
@@ -450,15 +452,27 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
             updateUndoButton();
             mixChip = formatMixChip(aiResult.mix);
           }
+        } else {
+          // Backup plan: If AI produced no mix (or if auth required, offline, or busy), lightly match the chat
+          const backupPlan = fallbackMatchMix(clean);
+          if (backupPlan?.actions?.length) {
+            await executor.executeActions(backupPlan.actions, { fromChat: true });
+            updateUndoButton();
+            mixChip = getActiveChannelsSummary();
+            if (aiResult.authRequired || !aiResult.reply || aiResult.reply.includes("Something went wrong") || aiResult.reply.includes("Could not reach")) {
+              finalReply = backupPlan.reply;
+            }
+          }
         }
+
         // Check if AI or user message indicated setting a sleep timer
-        const timerSec = extractTimerSeconds(clean) || (aiResult.reply && extractTimerSeconds(aiResult.reply));
-        if (timerSec && (clean.toLowerCase().includes("timer") || clean.toLowerCase().includes("sleep") || /timer.*?set|set.*?timer/i.test(aiResult.reply))) {
+        const timerSec = extractTimerSeconds(clean) || (finalReply && extractTimerSeconds(finalReply));
+        if (timerSec && (clean.toLowerCase().includes("timer") || clean.toLowerCase().includes("sleep") || /timer.*?set|set.*?timer/i.test(finalReply))) {
           await executor.executeActions([{ type: "timer_start", seconds: timerSec }]);
           showToast(`Sleep timer set for ${timerSec < 60 ? timerSec + "s" : Math.round(timerSec / 60) + "m"}`);
         }
 
-        appendMessage("assistant", aiResult.reply, { mixChip, hasUndo: Boolean(mixChip) });
+        appendMessage("assistant", finalReply, { mixChip, hasUndo: Boolean(mixChip) });
       }
     } finally {
       if (input) {

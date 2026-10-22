@@ -3,7 +3,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCommand } from "../public/js/assistant/commands.js";
+import { parseCommand, parseCompoundMix, fallbackMatchMix } from "../public/js/assistant/commands.js";
 
 const mockContext = {
   state: {
@@ -309,6 +309,41 @@ test("Assistant Commands - Exclusive and single sound play commands", () => {
   const playRain = parseCommand("play rain", mockContext);
   assert.ok(playRain?.actions?.some((a) => a.type === "target_set" && a.target?.id === "rain"));
   assert.ok(playRain?.actions?.some((a) => a.type === "play"));
+});
+
+test("Assistant Commands - Compound multi-sound & rest-zero commands", () => {
+  // Exact user screenshot prompt: "i need heavy rain 20%.rest all 0%"
+  const userPrompt = parseCommand("i need heavy rain 20%.rest all 0%", mockContext);
+  assert.equal(userPrompt?.actions[0]?.type, "preset");
+  assert.equal(userPrompt?.actions[0]?.levels?.rain?.layers?.["heavy-rain"], 0.20);
+  assert.equal(userPrompt?.actions[0]?.levels?.rain?.channel, 0.40);
+  assert.equal(userPrompt?.actions[0]?.levels?.coffee?.channel, 0);
+  assert.equal(userPrompt?.actions[0]?.levels?.fire?.channel, 0);
+  assert.equal(userPrompt?.actions[0]?.levels?.nature?.channel, 0);
+  assert.ok(userPrompt?.reply.includes("Heavy rain to 20%"));
+
+  // Multiple sounds with percentages
+  const multiSound = parseCommand("rain 50% and fire 30%", mockContext);
+  assert.ok(multiSound?.actions?.some((a) => a.type === "target_set" && a.target?.id === "rain" && a.value === 0.50));
+  assert.ok(multiSound?.actions?.some((a) => a.type === "target_set" && a.target?.id === "fire" && a.value === 0.30));
+
+  // Multiple sounds with rest 0
+  const wavesBirdsRest = parseCommand("waves 60%, birds 40%, rest 0", mockContext);
+  assert.equal(wavesBirdsRest?.actions[0]?.type, "preset");
+  assert.equal(wavesBirdsRest?.actions[0]?.levels?.nature?.layers?.waves, 0.60);
+  assert.equal(wavesBirdsRest?.actions[0]?.levels?.nature?.layers?.birds, 0.40);
+  assert.equal(wavesBirdsRest?.actions[0]?.levels?.rain?.channel, 0);
+  assert.equal(wavesBirdsRest?.actions[0]?.levels?.coffee?.channel, 0);
+
+  // Backup plan / fallback match mix
+  const fuzzyCozy = fallbackMatchMix("something cozy for a cold evening");
+  assert.ok(fuzzyCozy?.actions?.length);
+  assert.equal(fuzzyCozy?.actions[0]?.type, "preset");
+  assert.ok(fuzzyCozy?.reply.includes("Cozy"));
+
+  const fuzzySeaside = fallbackMatchMix("seaside cabin with waves and fire");
+  assert.ok(fuzzySeaside?.actions?.length);
+  assert.ok(fuzzySeaside?.reply.includes("waves") || fuzzySeaside?.reply.includes("Waves"));
 });
 
 test("Assistant Commands - App Features & Knowledge Base", () => {
