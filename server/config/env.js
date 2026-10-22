@@ -31,9 +31,9 @@ if (missing.length) {
 
 export const env = Object.freeze({
   port: Number.parseInt(getEnv("PORT"), 10) || 3000,
-  nodeEnv: getEnv("NODE_ENV"),
+  nodeEnv: getEnv("NODE_ENV") || "development",
   mongoUri: getEnv("MONGODB_URI"),
-  sessionSecret: getEnv("SESSION_SECRET"),
+  sessionSecret: getEnv("SESSION_SECRET") || "ambient-sound-studio-default-session-secret-key-32chars",
   provider: getEnv("PROVIDER").toLowerCase() || "gemini",
   geminiApiKey: getEnv("GEMINI_API_KEY"),
   geminiModel: getEnv("GEMINI_MODEL"),

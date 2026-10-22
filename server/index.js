@@ -83,7 +83,7 @@ function getSessionMiddleware() {
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: isProduction,
+      secure: isProduction || Boolean(process.env.VERCEL),
       maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
     },
   });
