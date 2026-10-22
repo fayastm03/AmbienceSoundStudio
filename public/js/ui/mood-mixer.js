@@ -139,6 +139,7 @@ export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
     lastRequestAt = Date.now();
     button.disabled = true;
     button.textContent = "Creating…";
+    button.classList.add("btn-loading");
     status.textContent = "Listening for the mood…";
     explanation.textContent = "";
     if (moodSaveButton) moodSaveButton.hidden = true;
@@ -182,6 +183,7 @@ export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
     } finally {
       button.disabled = false;
       button.textContent = "Create mix";
+      button.classList.remove("btn-loading");
     }
     explanation.textContent = result.explanation;
     window.dispatchEvent(new CustomEvent("mix:ai-applied", { detail: { name: result.name } }));
