@@ -1,5 +1,6 @@
 // Connects playback, mute, master, keyboard, and loading controls.
 import { setMaster, setMuted, saveState } from "../state/store.js";
+import { getActiveOverlay } from "./overlay.js";
 
 function isInteractiveOrTyping(target) {
   if (!target) return false;
@@ -8,12 +9,7 @@ function isInteractiveOrTyping(target) {
 }
 
 function isAnyModalOrPanelOpen() {
-  const authModal = document.querySelector("#authModal");
-  if (authModal && !authModal.hidden) return true;
-  const detailPanel = document.querySelector("#detailPanel");
-  if (detailPanel && detailPanel.getAttribute("aria-hidden") === "false") return true;
-  const mixesPanel = document.querySelector("#mixesPanel");
-  if (mixesPanel && mixesPanel.getAttribute("aria-hidden") === "false") return true;
+  if (getActiveOverlay()) return true;
   return document.body.classList.contains("modal-open");
 }
 

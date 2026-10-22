@@ -2,12 +2,13 @@
 import { fetchSavedMixes, createSavedMix, renameSavedMix, deleteSavedMix, apiRequest } from "../api/client.js";
 import { getState, setChannelVolume, setLayerVolume, saveState } from "../state/store.js";
 import { openAuthModal } from "./auth.js";
+import { showToast } from "./toast.js";
+import { registerOverlay, openOverlay, closeOverlay } from "./overlay.js";
 
 export function bindSavedMixes({ soundscapes, state, engine, render }) {
   const panel = document.querySelector("#mixesPanel");
   const openButton = document.querySelector("#mixesOpen");
   const closeButton = document.querySelector("#closeMixes");
-  const backdrop = panel.querySelector("[data-close-mixes]");
   const statusMessage = document.querySelector("#mixesStatus");
   const guestView = document.querySelector("#mixesGuestView");
   const userView = document.querySelector("#mixesUserView");
@@ -20,40 +21,41 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
   const errorIndicator = document.querySelector("#mixesError");
   const unavailableNotice = document.querySelector("#mixesUnavailable");
   const mixesList = document.querySelector("#mixesList");
+  const mixesFilterRow = document.querySelector("#mixesFilterRow");
+  const mixesFilter = document.querySelector("#mixesFilter");
+  const mixesFilterClear = document.querySelector("#mixesFilterClear");
 
   let currentUser = null;
   let accountsAvailable = true;
   let mixes = [];
   let pendingSource = "manual";
-  let returnFocus = null;
   let activeDeleteId = null;
   let activeRenameId = null;
   let isApplying = false;
+  let filterText = "";
 
   function announce(message) {
     if (statusMessage) statusMessage.textContent = message;
   }
 
-  function focusable() {
-    return [...panel.querySelectorAll("button, input, [tabindex]:not([tabindex='-1'])")].filter(
-      (element) => !element.disabled && !element.closest("[hidden]")
-    );
-  }
-
-  function isOtherOverlayOpen() {
-    const authModal = document.querySelector("#authModal");
-    const detailPanel = document.querySelector("#detailPanel");
-    return (authModal && !authModal.hidden) || (detailPanel && detailPanel.getAttribute("aria-hidden") === "false");
-  }
+  registerOverlay("mixesPanel", {
+    element: panel,
+    contentElement: panel.querySelector(".panel-content"),
+    usesScrim: true,
+    open: () => {
+      panel.setAttribute("aria-hidden", "false");
+    },
+    close: () => {
+      panel.setAttribute("aria-hidden", "true");
+      activeDeleteId = null;
+      activeRenameId = null;
+      announce("");
+    },
+    trapFocus: true,
+  });
 
   function open(initialName = "", source = "manual") {
-    // Notify other panels to close so panels never overlap
-    window.dispatchEvent(new CustomEvent("panel:open", { detail: { name: "mixes" } }));
-
-    returnFocus = document.activeElement;
     pendingSource = source;
-    panel.setAttribute("aria-hidden", "false");
-    document.body.classList.add("modal-open");
     announce("");
 
     if (unavailableNotice) unavailableNotice.hidden = accountsAvailable;
@@ -64,10 +66,8 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
       userView.hidden = false;
       if (initialName) {
         saveNameInput.value = initialName;
-        saveNameInput.focus();
       } else {
         saveNameInput.value = "";
-        closeButton.focus();
       }
       if (accountsAvailable) {
         loadMixes();
@@ -78,19 +78,20 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     } else {
       guestView.hidden = false;
       userView.hidden = true;
-      signInButton.focus();
     }
+
+    const focusTarget = currentUser
+      ? (initialName ? saveNameInput : closeButton)
+      : signInButton;
+
+    openOverlay("mixesPanel", {
+      trigger: openButton || document.activeElement,
+      focusTarget,
+    });
   }
 
   function close() {
-    panel.setAttribute("aria-hidden", "true");
-    if (!isOtherOverlayOpen()) {
-      document.body.classList.remove("modal-open");
-    }
-    activeDeleteId = null;
-    activeRenameId = null;
-    announce("");
-    returnFocus?.focus();
+    closeOverlay("mixesPanel");
   }
 
   async function loadMixes() {
@@ -98,7 +99,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     loadingIndicator.hidden = false;
     emptyIndicator.hidden = true;
     errorIndicator.hidden = true;
-    mixesList.innerHTML = "";
+    mixesList.innerHTML = "<li class=\"mix-skeleton\"></li><li class=\"mix-skeleton\"></li><li class=\"mix-skeleton\"></li>";
 
     try {
       mixes = await fetchSavedMixes();
@@ -127,13 +128,27 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
 
   function renderList() {
     mixesList.innerHTML = "";
+    const showFilter = mixes.length > 8;
+    if (mixesFilterRow) {
+      mixesFilterRow.hidden = !showFilter;
+    }
+    if (!showFilter) {
+      if (mixesFilter) mixesFilter.value = "";
+      if (mixesFilterClear) mixesFilterClear.hidden = true;
+      filterText = "";
+    }
+
     if (!mixes || mixes.length === 0) {
       emptyIndicator.hidden = false;
       return;
     }
     emptyIndicator.hidden = true;
 
-    mixes.forEach((mix) => {
+    const visibleMixes = filterText
+      ? mixes.filter((mix) => mix.name.toLowerCase().includes(filterText))
+      : mixes;
+
+    visibleMixes.forEach((mix) => {
       const item = document.createElement("li");
       item.className = "mix-item";
       item.dataset.mixId = mix.id;
@@ -152,8 +167,8 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
             <label class="sr-only" for="renameInput-${mix.id}">New name for ${escapeHtml(mix.name)}</label>
             <input id="renameInput-${mix.id}" type="text" maxlength="40" value="${escapeHtml(mix.name)}" required autocomplete="off">
             <div class="mix-actions">
-              <button type="submit" class="mix-button mix-button-save" aria-label="Confirm rename for ${escapeHtml(mix.name)}">Save</button>
-              <button type="button" class="mix-button mix-button-cancel" data-cancel-rename aria-label="Cancel renaming">Cancel</button>
+              <button type="submit" class="btn btn-primary btn-sm mix-button-save" aria-label="Confirm rename for ${escapeHtml(mix.name)}">Save</button>
+              <button type="button" class="btn btn-secondary btn-sm mix-button-cancel" data-cancel-rename aria-label="Cancel renaming">Cancel</button>
             </div>
           </form>
         `;
@@ -162,11 +177,11 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
         input.select();
       } else if (isDeleting) {
         item.innerHTML = `
-          <div class="mix-confirm-delete">
+          <div class="mix-confirm-delete" role="alert">
             <p>Delete <strong>${escapeHtml(mix.name)}</strong>?</p>
             <div class="mix-actions">
-              <button type="button" class="mix-button mix-button-delete" data-confirm-delete="${mix.id}" aria-label="Confirm delete ${escapeHtml(mix.name)}">Delete</button>
-              <button type="button" class="mix-button mix-button-cancel" data-cancel-delete aria-label="Cancel deletion">Cancel</button>
+              <button type="button" class="btn btn-danger btn-sm" data-confirm-delete="${mix.id}" aria-label="Yes, delete ${escapeHtml(mix.name)}">Yes, delete</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-cancel-delete aria-label="Cancel deletion">Cancel</button>
             </div>
           </div>
         `;
@@ -181,12 +196,40 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
             </div>
             <span class="mix-date">${formattedDate}</span>
           </div>
+          <div class="mix-levels-container"></div>
           <div class="mix-actions">
-            <button type="button" class="mix-button mix-button-apply" data-apply-mix="${mix.id}" aria-label="Apply mix ${escapeHtml(mix.name)}">Apply</button>
-            <button type="button" class="mix-button mix-button-rename" data-rename-mix="${mix.id}" aria-label="Rename mix ${escapeHtml(mix.name)}">Rename</button>
-            <button type="button" class="mix-button mix-button-remove" data-delete-mix="${mix.id}" aria-label="Delete mix ${escapeHtml(mix.name)}">Delete</button>
+            <button type="button" class="btn btn-accent btn-sm mix-button-apply" data-apply-mix="${mix.id}" aria-label="Apply mix ${escapeHtml(mix.name)}">Apply</button>
+            <button type="button" class="btn btn-secondary btn-sm mix-button-rename" data-rename-mix="${mix.id}" aria-label="Rename mix ${escapeHtml(mix.name)}">Rename</button>
+            <button type="button" class="btn btn-danger btn-sm mix-button-delete" data-delete-mix="${mix.id}" aria-label="Delete mix ${escapeHtml(mix.name)}">Delete</button>
           </div>
         `;
+
+        // Render level bars using DOM elements so CSP blocks never occur
+        const levelsWrap = item.querySelector(".mix-levels-container");
+        const levelsRow = document.createElement("div");
+        levelsRow.className = "mix-levels";
+        levelsRow.setAttribute("aria-label", `Levels: ${soundscapes.map((config) => `${config.name} ${Math.round((mix.levels?.[config.id]?.channel || 0) * 100)}%`).join(", ")}`);
+
+        soundscapes.forEach((config) => {
+          const level = Math.round((mix.levels?.[config.id]?.channel || 0) * 100);
+          const track = document.createElement("span");
+          track.className = "mix-level-track";
+          track.setAttribute("role", "progressbar");
+          track.setAttribute("aria-valuenow", String(level));
+          track.setAttribute("aria-valuemin", "0");
+          track.setAttribute("aria-valuemax", "100");
+          track.setAttribute("aria-label", `${config.name} ${level}%`);
+          track.title = `${config.name} ${level}%`;
+
+          const fill = document.createElement("span");
+          fill.className = `mix-level-fill mix-level-fill-${config.id}`;
+          fill.style.width = `${level}%`;
+
+          track.appendChild(fill);
+          levelsRow.appendChild(track);
+        });
+
+        levelsWrap.appendChild(levelsRow);
       }
 
       mixesList.appendChild(item);
@@ -220,6 +263,13 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     });
 
     mixesList.querySelectorAll("[data-rename-form]").forEach((form) => {
+      form.querySelector("input").addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          activeRenameId = null;
+          renderList();
+        }
+      });
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const id = form.dataset.renameForm;
@@ -233,6 +283,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
           activeRenameId = null;
           renderList();
           announce(`Renamed mix to "${newName}"`);
+          showToast("Mix renamed");
         } catch (error) {
           announce(error.message || "Failed to rename mix.");
         }
@@ -265,6 +316,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
           activeDeleteId = null;
           renderList();
           announce(`Deleted mix "${name}"`);
+          showToast("Mix deleted");
         } catch (error) {
           announce(error.message || "Failed to delete mix.");
         }
@@ -308,7 +360,6 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (reduceMotion) {
-      // Immediate application for users who prefer reduced motion
       soundscapes.forEach((config) => {
         const targetConfig = savedMix.levels?.[config.id];
         if (!targetConfig) return;
@@ -326,6 +377,8 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
       saveState();
       isApplying = false;
       announce(`Applied mix "${savedMix.name}"`);
+      showToast("Mix applied");
+      window.dispatchEvent(new CustomEvent("mix:applied", { detail: { name: savedMix.name } }));
       return;
     }
 
@@ -399,6 +452,8 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
           saveState();
           isApplying = false;
           announce(`Applied mix "${savedMix.name}"`);
+          showToast("Mix applied");
+          window.dispatchEvent(new CustomEvent("mix:applied", { detail: { name: savedMix.name } }));
           resolve();
         }
       }
@@ -408,32 +463,8 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
   }
 
   // Event Listeners
-  openButton.addEventListener("click", () => open("", "manual"));
+  openButton?.addEventListener("click", () => open("", "manual"));
   closeButton.addEventListener("click", close);
-  backdrop.addEventListener("click", close);
-
-  // Focus trap
-  panel.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") return close();
-    if (event.key !== "Tab") return;
-
-    const elements = focusable();
-    if (!elements.length) return;
-    const first = elements[0];
-    const last = elements[elements.length - 1];
-
-    if (event.shiftKey) {
-      if (document.activeElement === first || !elements.includes(document.activeElement)) {
-        event.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last || !elements.includes(document.activeElement)) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-  });
 
   signInButton.addEventListener("click", () => {
     close();
@@ -458,6 +489,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
 
     saveSubmitButton.disabled = true;
     saveSubmitButton.textContent = "Saving…";
+    saveSubmitButton.classList.add("btn-loading");
 
     try {
       const levels = readCurrentLevels();
@@ -471,6 +503,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
       mixes.unshift(newMix);
       renderList();
       announce(`Saved mix "${name}"`);
+      showToast("Mix saved");
     } catch (error) {
       if (error.status === 409) {
         announce("Limit of 50 mixes reached. Please delete an older mix.");
@@ -489,6 +522,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     } finally {
       saveSubmitButton.disabled = !accountsAvailable;
       saveSubmitButton.textContent = "Save";
+      saveSubmitButton.classList.remove("btn-loading");
     }
   });
 
@@ -497,7 +531,7 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     const user = event.detail?.user;
     currentUser = user || null;
 
-    if (!panel.getAttribute("aria-hidden") || panel.getAttribute("aria-hidden") === "false") {
+    if (panel.getAttribute("aria-hidden") === "false") {
       if (currentUser) {
         guestView.hidden = true;
         userView.hidden = false;
@@ -509,18 +543,44 @@ export function bindSavedMixes({ soundscapes, state, engine, render }) {
     }
   });
 
-  // Close when another panel opens
-  window.addEventListener("panel:open", (event) => {
-    if (event.detail?.name !== "mixes" && panel.getAttribute("aria-hidden") === "false") {
-      panel.setAttribute("aria-hidden", "true");
+  // Handle mix save requests (e.g. from AI mood mixer or account menu)
+  window.addEventListener("mix:save-request", (event) => {
+    const { name, source, signedIn } = event.detail || {};
+    if (signedIn === false || (signedIn === undefined && !currentUser)) {
+      close();
+      openAuthModal("login", "Sign in to save your mixes");
+      return;
     }
+    open(name || "", source || "manual");
   });
 
-  // Handle mix save requests (e.g. from AI mood mixer)
-  window.addEventListener("mix:save-request", (event) => {
-    const { name, source } = event.detail || {};
-    open(name || "", source || "ai");
-  });
+  if (mixesFilter) {
+    mixesFilter.addEventListener("input", () => {
+      filterText = mixesFilter.value.trim().toLowerCase();
+      if (mixesFilterClear) mixesFilterClear.hidden = !filterText;
+      renderList();
+    });
+
+    mixesFilter.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && filterText) {
+        event.stopPropagation();
+        mixesFilter.value = "";
+        filterText = "";
+        if (mixesFilterClear) mixesFilterClear.hidden = true;
+        renderList();
+      }
+    });
+  }
+
+  if (mixesFilterClear) {
+    mixesFilterClear.addEventListener("click", () => {
+      mixesFilter.value = "";
+      filterText = "";
+      mixesFilterClear.hidden = true;
+      mixesFilter.focus();
+      renderList();
+    });
+  }
 
   // Fetch initial auth state quietly
   apiRequest("/api/auth/me")

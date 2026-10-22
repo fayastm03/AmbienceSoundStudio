@@ -108,6 +108,7 @@ export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
   const status = document.querySelector("#moodStatus");
   const explanation = document.querySelector("#moodExplanation");
   const moodSaveButton = document.querySelector("#moodSaveButton");
+  if (moodSaveButton) moodSaveButton.hidden = true;
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = input.value.trim().slice(0, 200);
@@ -162,6 +163,7 @@ export function bindMoodMixer({ configs, state, engine, render, onSaveAiMix }) {
       button.textContent = "Create mix";
     }
     explanation.textContent = result.explanation;
+    window.dispatchEvent(new CustomEvent("mix:ai-applied", { detail: { name: result.name } }));
     if (moodSaveButton) {
       moodSaveButton.hidden = false;
       moodSaveButton.onclick = () => {
