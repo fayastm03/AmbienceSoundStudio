@@ -81,3 +81,13 @@ export async function getChatHistory() {
     return { messages: [], profile: null };
   }
 }
+
+export async function recordLocalChat(message, reply, mood = null, mix = null) {
+  try {
+    await fetch("/api/chat/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, reply, mood, mix }),
+    });
+  } catch {}
+}

@@ -109,7 +109,7 @@ function optionalSession(request, response, next) {
 }
 
 app.use("/api/health", healthRouter);
-app.use("/api/mix", mixRouter);
+app.use("/api/mix", optionalSession, mixRouter);
 app.use("/api/chat", optionalSession, chatRouter);
 
 // While the database is down, the front end can still ask "am I signed in?" and gets a calm answer.

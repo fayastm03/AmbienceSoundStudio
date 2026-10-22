@@ -246,4 +246,39 @@ router.get("/history", async (request, response) => {
   }
 });
 
+const recordSchema = z.object({
+  message: z.string().trim().min(1).max(500),
+  reply: z.string().trim().min(1).max(500),
+  mood: z.string().trim().max(50).nullable().optional(),
+  mix: z.record(z.any()).nullable().optional(),
+});
+
+router.post("/record", async (request, response) => {
+  if (!request.session?.userId || !isDatabaseConnected()) {
+    return response.json({ ok: false });
+  }
+
+  try {
+    const { message, reply, mood, mix } = recordSchema.parse(request.body);
+    const now = new Date();
+    await ChatMessage.create([
+      { userId: request.session.userId, role: "user", text: message, time: now },
+      { userId: request.session.userId, role: "assistant", text: reply, time: new Date(now.getTime() + 1) },
+    ]);
+
+    if (mood) {
+      await MoodEntry.create({
+        userId: request.session.userId,
+        mood,
+        mix: mix || {},
+        time: now,
+      });
+    }
+
+    return response.json({ ok: true });
+  } catch {
+    return response.json({ ok: false });
+  }
+});
+
 export default router;

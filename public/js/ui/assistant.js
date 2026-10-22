@@ -4,7 +4,7 @@
 import { registerOverlay, openOverlay, closeOverlay, isOverlayOpen } from "./overlay.js";
 import { parseCommand } from "../assistant/commands.js";
 import { createAssistantExecutor } from "../assistant/executor.js";
-import { askAssistant, getChatHistory } from "../assistant/ai-client.js";
+import { askAssistant, getChatHistory, recordLocalChat } from "../assistant/ai-client.js";
 import { isCrisisText, CRISIS_MESSAGE, HELPLINE_URL, HELPLINE_LABEL } from "../config/safety.js";
 
 const MAX_MESSAGES = 30;
@@ -339,8 +339,16 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
         );
         const mixChip = hasMixChange ? getActiveChannelsSummary() : null;
         appendMessage("assistant", localCmd.reply, { mixChip, hasUndo: Boolean(mixChip) });
+
+        // Record locally handled command to user history and mood in MongoDB
+        const presetAction = localCmd.actions.find((a) => a.type === "preset" || a.type === "surprise");
+        const lowerClean = clean.toLowerCase();
+        const detectedMood = presetAction?.name || (lowerClean.includes("warm") ? "cozy" : lowerClean.includes("crowd") ? "calm" : lowerClean.includes("focus") ? "focused" : lowerClean.includes("sleep") ? "sleepy" : null);
+        const mixSnapshot = getCurrentMixSnapshot();
+        recordLocalChat(clean, localCmd.reply, detectedMood, mixSnapshot);
       } else {
         appendMessage("assistant", localCmd.reply);
+        recordLocalChat(clean, localCmd.reply);
       }
       return;
     }
@@ -418,6 +426,16 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
             text: m.text,
           });
         });
+        // If user has a personalized profile greeting, show it as the session greeting
+        if (profile?.greeting) {
+          const lastMsg = messages[messages.length - 1];
+          if (!lastMsg || lastMsg.text !== profile.greeting) {
+            messages.push({
+              role: "assistant",
+              text: profile.greeting,
+            });
+          }
+        }
         while (messages.length > MAX_MESSAGES) {
           messages.shift();
         }
@@ -514,6 +532,7 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
 
   renderMessages();
   updateUndoButton();
+  loadHistory();
 
   return {
     open: () => openOverlay("assistantPanel", { trigger: button, focusTarget: input }),
