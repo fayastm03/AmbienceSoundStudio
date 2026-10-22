@@ -275,7 +275,7 @@ export function parseCommand(rawText, ctx = {}) {
     }
   }
 
-  // 4. Sleep timer: "sleep in N minutes / hours", "sleep timer 30", "timer 15 min", "cancel timer"
+  // 4. Sleep timer: "sleep in N minutes / seconds / hours", "sleep timer in 30 seconds", "timer 15 min", "cancel timer"
   if (/^(cancel|stop|clear|turn off|disable)\s+(?:sleep\s+|sleeper\s+)?timer$/i.test(stripped)) {
     return {
       actions: [{ type: "timer_cancel" }],
@@ -289,38 +289,84 @@ export function parseCommand(rawText, ctx = {}) {
     if (rem && rem > 0) {
       const mins = Math.floor(rem / 60);
       const secs = rem % 60;
+      const str = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
       return {
         actions: [],
-        reply: `Sleep timer has ${mins}m ${secs}s remaining.`
+        reply: `Sleep timer has ${str} remaining.`
       };
     }
     return {
       actions: [],
-      reply: "No active sleep timer. You can say 'sleep in 30 mins' to start one."
+      reply: "No active sleep timer. You can say 'sleep in 30 mins' or 'sleep timer in 30 seconds' to start one."
     };
   }
 
-  // 4c. Set timer with duration
-  let timerMatch = stripped.match(/^(\d+)\s*(mins?|minutes?|hours?|hrs?|h|m)\s+(?:sleep\s+|sleeper\s+)?timer$/i);
-  if (!timerMatch) {
-    timerMatch = stripped.match(/^(?:(?:set\s+(?:a\s+)?)?(?:sleep\s+|sleeper\s+)?timer\s*(?:for)?|sleep\s*(?:in|after)?|turn\s+off\s*(?:audio|sound)?\s*in|stop\s+in)\s+(\d+)\s*(mins?|minutes?|hours?|hrs?|h|m)?$/i);
-  }
+  const parseTimerSeconds = (amountStr, unitStr) => {
+    const amt = parseInt(amountStr, 10);
+    if (!Number.isFinite(amt) || amt <= 0) return null;
+    const u = (unitStr || "min").toLowerCase();
+    if (u.startsWith("s")) return amt;
+    if (u.startsWith("h")) return amt * 3600;
+    return amt * 60; // minutes
+  };
+
+  const formatTimerReply = (totalSec) => {
+    if (totalSec < 60) return `${totalSec} second${totalSec === 1 ? "" : "s"}`;
+    if (totalSec % 60 === 0) {
+      const m = totalSec / 60;
+      return `${m} minute${m === 1 ? "" : "s"}`;
+    }
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}m ${s}s`;
+  };
+
+  // 4c. Set timer with explicit duration
+  // Pattern A: "30 second timer", "30s sleep timer", "30 min timer", "1 hour timer"
+  let timerMatch = stripped.match(/^(\d+)\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?)\s+(?:sleep\s+|sleeper\s+)?timer$/i);
   if (timerMatch) {
-    const amount = parseInt(timerMatch[1], 10);
-    const unit = (timerMatch[2] || "min").toLowerCase();
-    const minutes = unit.startsWith("h") ? amount * 60 : amount;
-    if (minutes > 0 && minutes <= 720) {
+    const secs = parseTimerSeconds(timerMatch[1], timerMatch[2]);
+    if (secs && secs > 0 && secs <= 43200) {
       return {
-        actions: [{ type: "timer_start", minutes }],
-        reply: `Sleep timer set for ${minutes} minute${minutes === 1 ? "" : "s"}.`
+        actions: [{ type: "timer_start", seconds: secs, minutes: Math.round(secs / 60) }],
+        reply: `Sleep timer set for ${formatTimerReply(secs)}.`
       };
+    }
+  }
+
+  // Pattern B: "[set] [a] [sleep|sleeper] timer [in|for] 30 [seconds|mins|etc]"
+  // or "sleep [in|after|for] 30 [seconds|mins|etc]"
+  // or "turn off / stop / pause in 30 [seconds|mins|etc]"
+  timerMatch = stripped.match(/^(?:(?:set\s+(?:a\s+)?)?(?:sleep\s+|sleeper\s+)?timer\s*(?:in|for)?|sleep\s*(?:in|after|for)?|turn\s+off\s*(?:audio|sound)?\s*(?:in|after)?|stop\s*(?:audio|sound)?\s*(?:in|after)?|pause\s*(?:audio|sound)?\s*(?:in|after)?)\s+(\d+)\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?)?$/i);
+  if (timerMatch) {
+    const secs = parseTimerSeconds(timerMatch[1], timerMatch[2]);
+    if (secs && secs > 0 && secs <= 43200) {
+      return {
+        actions: [{ type: "timer_start", seconds: secs, minutes: Math.round(secs / 60) }],
+        reply: `Sleep timer set for ${formatTimerReply(secs)}.`
+      };
+    }
+  }
+
+  // Pattern C: Conversational sentences mentioning timer with a duration
+  // e.g. "can you set a sleep timer in 30 seconds", "please set a timer for 10s"
+  if (/(?:timer|sleep|turn off|stop).*?(\d+)\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?)/i.test(stripped)) {
+    const convMatch = stripped.match(/(\d+)\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?)/i);
+    if (convMatch) {
+      const secs = parseTimerSeconds(convMatch[1], convMatch[2]);
+      if (secs && secs > 0 && secs <= 43200) {
+        return {
+          actions: [{ type: "timer_start", seconds: secs, minutes: Math.round(secs / 60) }],
+          reply: `Sleep timer set for ${formatTimerReply(secs)}.`
+        };
+      }
     }
   }
 
   // 4d. Bare timer without duration (e.g. "sleep timer", "sleeper timer", "set sleep timer", "timer")
   if (/^(?:set\s+(?:a\s+)?)?(?:sleep\s+|sleeper\s+)?timer$/i.test(stripped)) {
     return {
-      actions: [{ type: "timer_start", minutes: 30 }],
+      actions: [{ type: "timer_start", seconds: 1800, minutes: 30 }],
       reply: "Sleep timer set for 30 minutes. (Say 'cancel timer' or 'sleep in 45 mins' to change it)."
     };
   }

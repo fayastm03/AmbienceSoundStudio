@@ -119,9 +119,10 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
   }
 
   // Sleep timer implementation
-  function startSleepTimer(minutes) {
+  function startSleepTimer(durationInSeconds) {
     cancelSleepTimer();
-    const totalMs = minutes * 60 * 1000;
+    const durationSec = Math.max(1, Math.min(43200, Math.round(Number(durationInSeconds) || 1800)));
+    const totalMs = durationSec * 1000;
     sleepTimerEndTime = Date.now() + totalMs;
     preTimerMaster = state.master;
 
@@ -133,8 +134,8 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
         onTimerTick(remainingSec);
       }
 
-      // In final 60 seconds (or entire time if < 60s), fade master smoothly to 0
-      const fadeWindowSec = Math.min(60, minutes * 60);
+      // In final window (if total duration < 60s, fade over last ~30% of time e.g. 9s for 30s; otherwise last 60s)
+      const fadeWindowSec = durationSec < 60 ? Math.max(2, Math.floor(durationSec * 0.3)) : Math.min(60, durationSec);
       if (remainingSec <= fadeWindowSec && remainingSec > 0) {
         const factor = remainingSec / fadeWindowSec;
         const targetMaster = clamp(preTimerMaster * factor);
@@ -458,9 +459,12 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
         }
 
         case "timer": {
-          if (action.minutes) {
-            startSleepTimer(action.minutes);
-          }
+          const secs = typeof action.seconds === "number"
+            ? action.seconds
+            : typeof action.minutes === "number"
+              ? action.minutes * 60
+              : 1800;
+          startSleepTimer(secs);
           break;
         }
 
@@ -522,7 +526,12 @@ export function createAssistantExecutor({ soundscapes, state, engine, render, on
         }
 
         case "timer_start": {
-          startSleepTimer(action.minutes);
+          const secs = typeof action.seconds === "number"
+            ? action.seconds
+            : typeof action.minutes === "number"
+              ? action.minutes * 60
+              : 1800;
+          startSleepTimer(secs);
           break;
         }
 

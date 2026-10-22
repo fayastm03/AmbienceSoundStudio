@@ -6,6 +6,7 @@ import { parseCommand } from "../assistant/commands.js";
 import { createAssistantExecutor } from "../assistant/executor.js";
 import { askAssistant, getChatHistory, recordLocalChat } from "../assistant/ai-client.js";
 import { isCrisisText, CRISIS_MESSAGE, HELPLINE_URL, HELPLINE_LABEL } from "../config/safety.js";
+import { showToast } from "./toast.js";
 
 const MAX_MESSAGES = 30;
 
@@ -21,6 +22,9 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   const timerBanner = document.querySelector("#assistantTimerBanner");
   const timerLabel = document.querySelector("#assistantTimerLabel");
   const timerCancelBtn = document.querySelector("#assistantTimerCancel");
+  const dockBadge = document.querySelector("#transportTimerBadge");
+  const dockLabel = document.querySelector("#transportTimerLabel");
+  const dockCancelBtn = document.querySelector("#transportTimerCancel");
   const liveStatus = document.querySelector("#assistantLiveStatus");
   const chipsRow = document.querySelector("#assistantChips");
   const quotaLabel = document.querySelector("#assistantQuota");
@@ -43,9 +47,28 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   }
 
   function formatTime(seconds) {
+    if (seconds >= 3600) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+
+  function extractTimerSeconds(text) {
+    if (!text || typeof text !== "string") return null;
+    const norm = text.toLowerCase();
+    const m = norm.match(/(\d+)\s*(s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?)/i);
+    if (m) {
+      const amt = parseInt(m[1], 10);
+      const u = m[2].toLowerCase();
+      const sec = u.startsWith("s") ? amt : u.startsWith("h") ? amt * 3600 : amt * 60;
+      if (sec > 0 && sec <= 43200) return sec;
+    }
+    return null;
   }
 
   const executor = createAssistantExecutor({
@@ -56,10 +79,19 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
     onTimerTick: (remainingSeconds) => {
       if (remainingSeconds === null || remainingSeconds <= 0) {
         if (timerBanner) timerBanner.hidden = true;
+        if (dockBadge) dockBadge.hidden = true;
+        if (remainingSeconds === 0) {
+          showToast("Sleep timer completed. Audio paused.");
+        }
       } else {
+        const timeStr = formatTime(remainingSeconds);
         if (timerBanner) {
           timerBanner.hidden = false;
-          if (timerLabel) timerLabel.textContent = `Sleep timer: ${formatTime(remainingSeconds)}`;
+          if (timerLabel) timerLabel.textContent = `Sleep timer: ${timeStr}`;
+        }
+        if (dockBadge) {
+          dockBadge.hidden = false;
+          if (dockLabel) dockLabel.textContent = timeStr;
         }
       }
     },
@@ -344,6 +376,11 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
       if (localCmd.actions?.length) {
         const { masterClipped } = await executor.executeActions(localCmd.actions, { fromChat: true });
         updateUndoButton();
+        if (localCmd.actions.some((a) => a.type === "timer_start")) {
+          showToast(localCmd.reply);
+        } else if (localCmd.actions.some((a) => a.type === "timer_cancel")) {
+          showToast("Sleep timer cancelled");
+        }
         if (masterClipped && !localCmd.reply.includes("comfortable level")) {
           localCmd.reply += " I kept the volume at a comfortable level.";
         }
@@ -408,6 +445,13 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
             mixChip = formatMixChip(aiResult.mix);
           }
         }
+        // Check if AI or user message indicated setting a sleep timer
+        const timerSec = extractTimerSeconds(clean) || (aiResult.reply && extractTimerSeconds(aiResult.reply));
+        if (timerSec && (clean.toLowerCase().includes("timer") || clean.toLowerCase().includes("sleep") || /timer.*?set|set.*?timer/i.test(aiResult.reply))) {
+          await executor.executeActions([{ type: "timer_start", seconds: timerSec }]);
+          showToast(`Sleep timer set for ${timerSec < 60 ? timerSec + "s" : Math.round(timerSec / 60) + "m"}`);
+        }
+
         appendMessage("assistant", aiResult.reply, { mixChip, hasUndo: Boolean(mixChip) });
       }
     } finally {
@@ -548,6 +592,16 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   if (timerCancelBtn) {
     timerCancelBtn.addEventListener("click", () => {
       executor.cancelSleepTimer();
+      showToast("Sleep timer cancelled");
+      appendMessage("assistant", "Sleep timer cancelled.");
+    });
+  }
+
+  if (dockCancelBtn) {
+    dockCancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      executor.cancelSleepTimer();
+      showToast("Sleep timer cancelled");
       appendMessage("assistant", "Sleep timer cancelled.");
     });
   }
@@ -570,13 +624,20 @@ export function bindAssistant({ soundscapes, state, engine, render, getSavedMixe
   };
 
   function syncTimerBanner() {
-    if (!timerBanner) return;
     const rem = executor.getTimerRemaining();
     if (rem && rem > 0) {
-      timerBanner.hidden = false;
-      if (timerLabel) timerLabel.textContent = `Sleep timer: ${formatTime(rem)}`;
+      const timeStr = formatTime(rem);
+      if (timerBanner) {
+        timerBanner.hidden = false;
+        if (timerLabel) timerLabel.textContent = `Sleep timer: ${timeStr}`;
+      }
+      if (dockBadge) {
+        dockBadge.hidden = false;
+        if (dockLabel) dockLabel.textContent = timeStr;
+      }
     } else {
-      timerBanner.hidden = true;
+      if (timerBanner) timerBanner.hidden = true;
+      if (dockBadge) dockBadge.hidden = true;
     }
   }
 

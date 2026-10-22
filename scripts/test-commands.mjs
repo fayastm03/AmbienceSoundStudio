@@ -191,6 +191,23 @@ test("Assistant Commands - Sleep timer controls", () => {
   assert.equal(turnOffIn?.actions[0]?.type, "timer_start");
   assert.equal(turnOffIn?.actions[0]?.minutes, 20);
 
+  // Seconds support: "sleep timer in 30 seconds", "sleep in 30 seconds", "30 second timer"
+  const st30s = parseCommand("sleep timer in 30 seconds", mockContext);
+  assert.equal(st30s?.actions[0]?.type, "timer_start");
+  assert.equal(st30s?.actions[0]?.seconds, 30);
+
+  const s30s = parseCommand("sleep in 30 seconds", mockContext);
+  assert.equal(s30s?.actions[0]?.type, "timer_start");
+  assert.equal(s30s?.actions[0]?.seconds, 30);
+
+  const sec30t = parseCommand("30 second timer", mockContext);
+  assert.equal(sec30t?.actions[0]?.type, "timer_start");
+  assert.equal(sec30t?.actions[0]?.seconds, 30);
+
+  const convTimer = parseCommand("can you set a sleep timer in 30 seconds", mockContext);
+  assert.equal(convTimer?.actions[0]?.type, "timer_start");
+  assert.equal(convTimer?.actions[0]?.seconds, 30);
+
   const cancel = parseCommand("cancel timer", mockContext);
   assert.equal(cancel?.actions[0]?.type, "timer_cancel");
 

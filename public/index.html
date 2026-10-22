@@ -72,6 +72,11 @@
           </div>
           <div class="transport-status">
             <p class="now-playing" id="nowPlaying" aria-live="polite" hidden></p>
+            <div class="timer-dock-badge" id="transportTimerBadge" hidden role="status" aria-live="polite">
+              <span class="timer-dock-icon" aria-hidden="true">⏱</span>
+              <span id="transportTimerLabel">00:00</span>
+              <button type="button" id="transportTimerCancel" class="timer-dock-cancel" aria-label="Cancel sleep timer" title="Cancel sleep timer">×</button>
+            </div>
           </div>
           <div class="master-control">
             <label for="masterVolume">Master</label>
